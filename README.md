@@ -201,3 +201,4 @@ dotnet ef migrations remove --project ../HDA.Infrastructure
 
 Educational project. Not affiliated with Valve Corporation or any Dota 2 partner.  
 Data from OpenDota is used under their open API terms.
+ 
