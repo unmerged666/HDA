@@ -1,0 +1,158 @@
+@page "/admin/players/{Id:int}"
+@inject IProPlayerService PlayerService
+@inject ITeamService TeamService
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAuthService AuthService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Edit Player — HDA Admin</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h5" Style="color:#EAEAEA;">Edit Pro Player</MudText>
+</MudStack>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> }
+else if (_player == null) { <MudAlert Severity="Severity.Error">Player not found.</MudAlert> }
+else
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
+                <MudText Typo="Typo.h6" Class="mb-4" Style="color:#EAEAEA;">Profile</MudText>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_player.Nickname" Label="Nickname" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_player.RealName" Label="Real Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_player.Country" Label="Country" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_player.Role" Label="Role" Variant="Variant.Outlined">
+                            @foreach (var r in Enum.GetValues<PlayerRole>())
+                            {
+                                <MudSelectItem Value="r">@r</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_player.TeamId" Label="Team" Variant="Variant.Outlined">
+                            <MudSelectItem T="int?" Value="@((int?)null)">Free Agent</MudSelectItem>
+                            @foreach (var t in _teams)
+                            {
+                                <MudSelectItem T="int?" Value="t.Id">@t.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="_player.Status" Label="Status" Variant="Variant.Outlined">
+                            @foreach (var s in Enum.GetValues<ProPlayerStatus>())
+                            {
+                                <MudSelectItem Value="s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_player.Bio" Label="Bio" Variant="Variant.Outlined" Lines="3" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_player.SteamId" Label="Steam ID" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
+                <MudText Typo="Typo.h6" Class="mb-4" Style="color:#EAEAEA;">Career Statistics</MudText>
+                <MudText Typo="Typo.caption" Style="color:#8A8AAA;" Class="mb-3">
+                    These stats appear on the player's public profile page.
+                </MudText>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.TotalMatches" Label="Total Matches" Variant="Variant.Outlined" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.Wins" Label="Wins" Variant="Variant.Outlined" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.AvgKills" Label="Avg Kills" Variant="Variant.Outlined"
+                                         Min="0" Format="F2" Step="0.1" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.AvgDeaths" Label="Avg Deaths" Variant="Variant.Outlined"
+                                         Min="0" Format="F2" Step="0.1" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.AvgAssists" Label="Avg Assists" Variant="Variant.Outlined"
+                                         Min="0" Format="F2" Step="0.1" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_player.AvgGpm" Label="Avg GPM" Variant="Variant.Outlined"
+                                         Min="0" Format="F0" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudNumericField @bind-Value="_player.AvgXpm" Label="Avg XPM" Variant="Variant.Outlined"
+                                         Min="0" Format="F0" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" OnClick="RecalcStats"
+                           Class="mt-3" Size="Size.Small" StartIcon="@Icons.Material.Filled.Refresh">
+                    Recalculate from Match Data
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Default" Href="/admin">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="_saving"
+                   StartIcon="@Icons.Material.Filled.Save">
+            @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" /> }
+            else { <span>Save Player</span> }
+        </MudButton>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ProPlayer? _player;
+    private List<Team> _teams = [];
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _player = await PlayerService.GetDetailAsync(Id);
+        _teams = await TeamService.GetRankingsAsync();
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        if (_player == null) return;
+        _saving = true;
+        await PlayerService.CreateOrUpdateProfileAsync(_player);
+        await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "AdminUpdatePlayer", "ProPlayer", _player.Id, _player.Nickname);
+        _saving = false;
+        Snackbar.Add("Player saved!", Severity.Success);
+    }
+
+    private async Task RecalcStats()
+    {
+        if (_player == null) return;
+        await PlayerService.UpdateStatsAsync(_player.Id);
+        _player = await PlayerService.GetDetailAsync(_player.Id);
+        Snackbar.Add("Stats recalculated!", Severity.Info);
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,111 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">Пользователи (@_users.Count)</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <input @bind="_search" @bind:event="oninput" placeholder="Поиск..."
+               style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;font-size:12px;color:var(--t1);font-family:var(--font-body);outline:none;" />
+    </div>
+</div>
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <table class="hda-table">
+        <thead>
+            <tr>
+                <th>Пользователь</th>
+                <th>Email</th>
+                <th>Роль</th>
+                <th>Активен</th>
+                <th>Создан</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_loading)
+            {
+                @for (int i = 0; i < 5; i++) { <tr><td colspan="6"><MudSkeleton Height="32px" /></td></tr> }
+            }
+            else
+            {
+                @foreach (var u in _filtered)
+                {
+                    <tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:28px;height:28px;border-radius:6px;background:var(--accent-a);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--accent);flex-shrink:0;font-family:var(--font-display);">
+                                    @(u.Username.Length > 0 ? u.Username[0].ToString().ToUpper() : "?")
+                                </div>
+                                <span style="font-weight:600;color:var(--t1);">@u.Username</span>
+                            </div>
+                        </td>
+                        <td style="color:var(--t3);font-size:12px;font-family:var(--font-mono);">@u.Email</td>
+                        <td>
+                            <span style="@RoleStyle(u.Role)">@RoleLbl(u.Role)</span>
+                        </td>
+                        <td>
+                            <span style="@(u.IsActive?"color:var(--green)":"color:var(--accent)")">@(u.IsActive?"✓ Да":"✗ Нет")</span>
+                        </td>
+                        <td style="color:var(--t4);font-size:11px;font-family:var(--font-mono);">@u.CreatedAt.ToString("dd.MM.yy")</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                @if (u.Role != UserRole.Admin)
+                                {
+                                    <button class="btn-sm" @onclick="@(()=>ToggleAdmin(u))" style="font-size:9px;padding:4px 8px;">
+                                        @(u.Role==UserRole.Admin?"↓ Снять":"↑ Админ")
+                                    </button>
+                                    <button class="btn-sm" @onclick="@(()=>ToggleActive(u))" style="font-size:9px;padding:4px 8px;@(u.IsActive?"border-color:var(--accent);color:var(--accent)":"border-color:var(--green);color:var(--green)")">
+                                        @(u.IsActive?"Заблок.":"Разблок.")
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<User> _users = [];
+    private string _search = "";
+    private bool _loading = true;
+    private IEnumerable<User> _filtered => _users.Where(u =>
+        string.IsNullOrEmpty(_search) ||
+        u.Username.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+        u.Email.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = await Db.Users.OrderByDescending(u => u.CreatedAt).ToListAsync();
+        _loading = false;
+    }
+
+    private async Task ToggleActive(User u)
+    {
+        u.IsActive = !u.IsActive;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{u.Username}: {(u.IsActive?"разблокирован":"заблокирован")}", Severity.Success);
+    }
+
+    private async Task ToggleAdmin(User u)
+    {
+        u.Role = u.Role == UserRole.Admin ? UserRole.Regular : UserRole.Admin;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"Роль {u.Username} изменена", Severity.Success);
+    }
+
+    private string RoleLbl(UserRole r) => r switch { UserRole.Admin=>"Админ", UserRole.ProPlayer=>"Про", _=>"Юзер" };
+    private string RoleStyle(UserRole r) => r switch
+    {
+        UserRole.Admin => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(232,64,87,.12);color:var(--accent);font-family:var(--font-display);",
+        UserRole.ProPlayer => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,184,0,.12);color:var(--gold);font-family:var(--font-display);",
+        _ => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--t3);font-family:var(--font-display);"
+    };
+}

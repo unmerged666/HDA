@@ -1,0 +1,226 @@
+@page "/admin/news/{Id:int?}"
+@inject INewsService NewsService
+@inject IFileUploadService FileUpload
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAuthService AuthService
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+
+<PageTitle>@(_isNew ? "Write Article" : "Edit Article") — HDA Admin</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h5" Style="color:#EAEAEA;">@(_isNew ? "Write New Article" : "Edit Article")</MudText>
+</MudStack>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> }
+else
+{
+    <MudGrid Spacing="3">
+        <!-- Main Editor -->
+        <MudItem xs="12" md="8">
+            <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
+                <MudTextField @bind-Value="_form.Title" Label="Title *" Variant="Variant.Outlined"
+                              Required="true" FullWidth="true" Class="mb-3"
+                              Style="font-size:1.1rem;" />
+
+                <MudTextField @bind-Value="_form.Summary" Label="Summary / Lead paragraph"
+                              Variant="Variant.Outlined" Lines="3" FullWidth="true" Class="mb-3"
+                              HelperText="Shown in news cards and at top of article" />
+
+                <MudTextField @bind-Value="_form.Content" Label="Full Article Content *"
+                              Variant="Variant.Outlined" Lines="20" FullWidth="true" Class="mb-3"
+                              Style="font-family: monospace;" Required="true" />
+            </MudPaper>
+        </MudItem>
+
+        <!-- Sidebar Settings -->
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="color:#EAEAEA;">Article Settings</MudText>
+
+                <!-- Category -->
+                <MudSelect @bind-Value="_form.Category" Label="Category" Variant="Variant.Outlined" Class="mb-3">
+                    <MudSelectItem Value="@("Result")">Result</MudSelectItem>
+                    <MudSelectItem Value="@("Transfer")">Transfer</MudSelectItem>
+                    <MudSelectItem Value="@("Patch")">Patch</MudSelectItem>
+                    <MudSelectItem Value="@("Interview")">Interview</MudSelectItem>
+                    <MudSelectItem Value="@("Analysis")">Analysis</MudSelectItem>
+                    <MudSelectItem Value="@("News")">General News</MudSelectItem>
+                </MudSelect>
+
+                <!-- Cover Image -->
+                <MudText Typo="Typo.subtitle2" Style="color:#8A8AAA;" Class="mb-1">Cover Image</MudText>
+                @if (!string.IsNullOrEmpty(_imagePreview))
+                {
+                    <img src="@_imagePreview" alt="Preview"
+                         style="width:100%; height:140px; object-fit:cover; border-radius:8px; margin-bottom:8px;" />
+                }
+                <InputFile id="coverInput" OnChange="OnImageSelected" accept="image/*" style="display:none;" />
+                <MudButton HtmlTag="label" for="coverInput" Variant="Variant.Outlined" Color="Color.Primary"
+                           FullWidth="true" Size="Size.Small" Class="mb-3"
+                           StartIcon="@Icons.Material.Filled.Image">
+                    @(_imagePreview != null ? "Change Image" : "Upload Cover Image")
+                </MudButton>
+
+                <!-- Publish toggle -->
+                <MudSwitch @bind-Value="_form.IsPublished" Color="Color.Success" Class="mb-3">
+                    <MudText Typo="Typo.body2" Style="color:#EAEAEA;">
+                        @(_form.IsPublished ? "Published" : "Draft")
+                    </MudText>
+                </MudSwitch>
+
+                <MudDivider Class="mb-3" />
+
+                <!-- Actions -->
+                <MudStack Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save"
+                               Disabled="_saving" FullWidth="true" StartIcon="@Icons.Material.Filled.Save">
+                        @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" /> }
+                        else { <span>@(_isNew ? "Create Article" : "Save Changes")</span> }
+                    </MudButton>
+
+                    @if (!_isNew)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="TogglePublish"
+                                   FullWidth="true">
+                            @(_form.IsPublished ? "Unpublish" : "Publish Now")
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Delete"
+                                   FullWidth="true">Delete Article</MudButton>
+                    }
+                </MudStack>
+            </MudPaper>
+
+            @if (!_isNew && _article != null)
+            {
+                <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:16px; margin-top:12px;">
+                    <MudText Typo="Typo.caption" Style="color:#8A8AAA; display:block;">Slug (URL)</MudText>
+                    <MudText Typo="Typo.body2" Style="color:#EAEAEA; word-break:break-all;">/news/@_article.Slug</MudText>
+                    <MudText Typo="Typo.caption" Style="color:#8A8AAA; display:block; margin-top:8px;">Created</MudText>
+                    <MudText Typo="Typo.body2" Style="color:#EAEAEA;">@_article.CreatedAt.ToString("MMM dd, yyyy HH:mm")</MudText>
+                    @if (_article.PublishedAt.HasValue)
+                    {
+                        <MudText Typo="Typo.caption" Style="color:#8A8AAA; display:block; margin-top:8px;">Published</MudText>
+                        <MudText Typo="Typo.body2" Style="color:#4CAF50;">@_article.PublishedAt.Value.ToString("MMM dd, yyyy HH:mm")</MudText>
+                    }
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private bool _isNew => Id == null || Id == 0;
+    private NewsArticle? _article;
+    private NewsForm _form = new();
+    private IBrowserFile? _imageFile;
+    private string? _imagePreview;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!_isNew)
+        {
+            _article = await NewsService.GetBySlugAsync("") ?? null;
+            // Load by ID — extend NewsService if needed; for now fetch from list
+            var all = await NewsService.GetAllAsync();
+            _article = all.FirstOrDefault(a => a.Id == Id);
+            if (_article != null)
+            {
+                _form = new NewsForm
+                {
+                    Title = _article.Title,
+                    Summary = _article.Summary,
+                    Content = _article.Content,
+                    Category = _article.Category ?? "News",
+                    IsPublished = _article.IsPublished,
+                };
+                _imagePreview = _article.ImageUrl;
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        _imageFile = e.File;
+        var buf = new byte[Math.Min(e.File.Size, 5 * 1024 * 1024)];
+        await e.File.OpenReadStream(5 * 1024 * 1024).ReadAsync(buf);
+        _imagePreview = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(buf)}";
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        string? imageUrl = _article?.ImageUrl;
+        if (_imageFile != null) imageUrl = await FileUpload.UploadImageAsync(_imageFile, "news");
+
+        if (_isNew)
+        {
+            var article = new NewsArticle
+            {
+                Title = _form.Title ?? "",
+                Summary = _form.Summary,
+                Content = _form.Content ?? "",
+                Category = _form.Category,
+                IsPublished = _form.IsPublished,
+                ImageUrl = imageUrl,
+                AuthorId = AppState.CurrentUser!.Id,
+                PublishedAt = _form.IsPublished ? DateTime.UtcNow : null,
+            };
+            await NewsService.CreateAsync(article);
+            await AuthService.LogActivityAsync(AppState.CurrentUser.Id, "CreateArticle", "NewsArticle", article.Id, article.Title);
+            Snackbar.Add("Article created!", Severity.Success);
+        }
+        else if (_article != null)
+        {
+            _article.Title = _form.Title ?? _article.Title;
+            _article.Summary = _form.Summary;
+            _article.Content = _form.Content ?? _article.Content;
+            _article.Category = _form.Category;
+            _article.IsPublished = _form.IsPublished;
+            _article.ImageUrl = imageUrl;
+            if (_form.IsPublished && !_article.PublishedAt.HasValue)
+                _article.PublishedAt = DateTime.UtcNow;
+            await NewsService.UpdateAsync(_article);
+            await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "UpdateArticle", "NewsArticle", _article.Id, _article.Title);
+            Snackbar.Add("Article saved!", Severity.Success);
+        }
+
+        _saving = false;
+        Nav.NavigateTo("/admin/news-list");
+    }
+
+    private async Task TogglePublish()
+    {
+        if (_article == null) return;
+        await NewsService.PublishAsync(_article.Id, !_article.IsPublished);
+        _form.IsPublished = !_form.IsPublished;
+        Snackbar.Add(_form.IsPublished ? "Article published!" : "Article unpublished.", Severity.Info);
+    }
+
+    private async Task Delete()
+    {
+        if (_article == null) return;
+        await NewsService.DeleteAsync(_article.Id);
+        await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "DeleteArticle", "NewsArticle", _article.Id);
+        Snackbar.Add("Article deleted.", Severity.Warning);
+        Nav.NavigateTo("/admin/news-list");
+    }
+
+    private class NewsForm
+    {
+        public string? Title { get; set; }
+        public string? Summary { get; set; }
+        public string? Content { get; set; }
+        public string Category { get; set; } = "News";
+        public bool IsPublished { get; set; }
+    }
+}

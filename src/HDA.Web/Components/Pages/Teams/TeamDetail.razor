@@ -1,0 +1,109 @@
+@page "/teams/{Id:int}"
+@inject ITeamService TeamService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>@(_team?.Name ?? "Команда") — HDA.gg</PageTitle>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Error" Style="height:2px;" /> }
+else if (_team == null) { <div style="padding:40px;text-align:center;color:var(--t3);">Команда не найдена</div> }
+else
+{
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:28px 24px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 40% 80% at 95% 50%,rgba(232,64,87,0.06),transparent);pointer-events:none;"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="width:72px;height:72px;border-radius:14px;background:var(--bg3);border:1px solid var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:var(--red);flex-shrink:0;">
+                @if (!string.IsNullOrEmpty(_team.LogoUrl)) { <img src="@_team.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                else { @(_team.Tag.Substring(0,Math.Min(2,_team.Tag.Length))) }
+            </div>
+            <div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                    <span style="font-size:28px;font-weight:900;color:var(--t1);letter-spacing:-0.5px;">@_team.Name</span>
+                    <span style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--t3);">@_team.Tag</span>
+                    <span style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.2);border-radius:4px;padding:3px 8px;font-size:11px;font-weight:800;color:#FFD700;">#@_team.WorldRank в мире</span>
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                    @if (_team.Region != null) { <span style="font-size:12px;color:var(--t3);">📍 @_team.Region</span> }
+                    @if (_team.Country != null) { <span style="font-size:12px;color:var(--t3);">🏳 @_team.Country</span> }
+                    <span style="font-size:12px;color:var(--t3);">Основана: @_team.Founded.Year</span>
+                    <span style="font-size:14px;font-weight:900;color:var(--red);">@_team.RatingPoints pts</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hda-layout" style="display:grid;grid-template-columns:1fr 300px;">
+        <div class="hda-content">
+            <div class="sec"><div class="sec-title">Последние матчи</div></div>
+            @if (!_matches.Any()) { <div style="padding:24px;text-align:center;color:var(--t3);font-size:13px;">Нет матчей</div> }
+            @foreach (var m in _matches) { <MatchCard Match="m" /> }
+
+            @if (_team.HeroStats.Any())
+            {
+                <div class="sec" style="margin-top:8px;"><div class="sec-title">Статистика по героям</div></div>
+                <table class="hda-table">
+                    <thead>
+                        <tr>
+                            <th>Герой</th><th>Пики</th><th>Баны</th><th>Победы %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in _team.HeroStats.OrderByDescending(x=>x.Picks).Take(12))
+                        {
+                            var wr = h.Picks>0 ? (double)h.Wins/h.Picks*100 : 0;
+                            <tr>
+                                <td style="font-weight:600;">@h.Hero?.LocalizedName</td>
+                                <td style="color:var(--amber);font-weight:700;">@h.Picks</td>
+                                <td style="color:var(--red);">@h.Bans</td>
+                                <td style="font-weight:700;color:@(wr>=50?"var(--green)":"var(--red)");">@wr.ToString("F1")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="hda-sidebar">
+            <div class="sec"><div class="sec-title">Состав</div></div>
+            @foreach (var p in _team.Players.OrderBy(x=>(int)x.Role))
+            {
+                <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:all 0.12s;"
+                     @onclick="@(() => Nav.NavigateTo($"/players/{p.Id}"))">
+                    <div style="width:36px;height:36px;border-radius:7px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--red);">
+                        @if (!string.IsNullOrEmpty(p.AvatarUrl)) { <img src="@p.AvatarUrl" style="width:100%;height:100%;object-fit:cover;" /> }
+                        else { @p.Nickname[0] }
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@p.Nickname</div>
+                        <div style="font-size:10px;color:var(--t3);">@p.RealName · @p.Country</div>
+                    </div>
+                    <span class="role-tag" style="margin-top:0;">@RL(p.Role)</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private Team? _team;
+    private List<Match> _matches = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _team = await TeamService.GetDetailAsync(Id);
+        _matches = await TeamService.GetRecentMatchesAsync(Id, 6);
+        _loading = false;
+    }
+
+    private string RL(HDA.Domain.Enums.PlayerRole r) => r switch
+    {
+        HDA.Domain.Enums.PlayerRole.Carry=>"Керри", HDA.Domain.Enums.PlayerRole.Midlaner=>"Мид",
+        HDA.Domain.Enums.PlayerRole.Offlaner=>"Офф", HDA.Domain.Enums.PlayerRole.SoftSupport=>"4 поз.",
+        HDA.Domain.Enums.PlayerRole.HardSupport=>"Саппорт", _=>r.ToString()
+    };
+}

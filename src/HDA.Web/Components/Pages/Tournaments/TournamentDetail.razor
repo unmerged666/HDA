@@ -1,0 +1,177 @@
+@page "/tournaments/{Id:int}"
+@inject ITournamentService TournamentService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>@(_t?.Name ?? "Турнир") — HDA.gg</PageTitle>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Error" Style="height:2px;" /> }
+else if (_t == null) { <div style="padding:40px;text-align:center;color:var(--t3);">Турнир не найден</div> }
+else
+{
+    <!-- Header -->
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:28px 24px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 30% 80% at 95% 50%,rgba(255,215,0,0.04),transparent);pointer-events:none;"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="width:72px;height:72px;border-radius:14px;background:var(--bg3);border:1px solid var(--border2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:var(--red);">
+                @if (!string.IsNullOrEmpty(_t.LogoUrl)) { <img src="@_t.LogoUrl" style="width:56px;height:56px;object-fit:contain;" /> }
+                else { <span>TI</span> }
+            </div>
+            <div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                    <span style="font-size:26px;font-weight:900;color:var(--t1);">@_t.Name</span>
+                    <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:4px;background:@TierBg(_t.Tier);color:@TierClr(_t.Tier);">ТИР @((int)_t.Tier)</span>
+                    <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;background:@StatusBg(_t.Status);color:@StatusClr(_t.Status);">@StatusLbl(_t.Status)</span>
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                    <span style="font-size:12px;color:var(--t3);">📅 @_t.StartDate.ToString("dd MMM") – @_t.EndDate.ToString("dd MMM yyyy")</span>
+                    @if (_t.Location != null) { <span style="font-size:12px;color:var(--t3);">📍 @_t.Location</span> }
+                    else if (_t.Region != null) { <span style="font-size:12px;color:var(--t3);">🌍 @_t.Region</span> }
+                    <span style="font-size:14px;font-weight:900;color:#FFD700;">$@_t.PrizePool.ToString("N0")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <MudTabs Elevation="0" Style="background:transparent;" PanelClass="pa-0">
+
+        <!-- Participants -->
+        <MudTabPanel Text="Участники">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px;background:var(--border);padding:1px;">
+                @foreach (var p in _t.Participants.OrderBy(x => x.FinalPlacement ?? 999))
+                {
+                    <div style="background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background 0.12s;"
+                         @onclick="@(() => Nav.NavigateTo($"/teams/{p.TeamId}"))">
+                        @if (p.FinalPlacement.HasValue)
+                        {
+                            <span style="font-size:16px;font-weight:900;min-width:26px;color:@PlaceClr(p.FinalPlacement.Value);">@p.FinalPlacement</span>
+                        }
+                        <div style="width:36px;height:36px;border-radius:7px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--red);">
+                            @if (!string.IsNullOrEmpty(p.Team?.LogoUrl)) { <img src="@p.Team.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                            else { <span>@(p.Team?.Tag?.Substring(0,Math.Min(2,p.Team?.Tag?.Length??0))??"?")</span> }
+                        </div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;font-weight:700;color:var(--t1);">@p.Team?.Name</div>
+                            @if (p.PrizeWon.HasValue && p.PrizeWon > 0)
+                            { <div style="font-size:11px;color:#FFD700;font-weight:700;">$@p.PrizeWon.Value.ToString("N0")</div> }
+                        </div>
+                    </div>
+                }
+            </div>
+        </MudTabPanel>
+
+        <!-- Playoff bracket -->
+        @if (_t.Stages.Any(s => s.Type == StageType.Playoffs || s.Type == StageType.GrandFinals))
+        {
+            <MudTabPanel Text="Сетка плей-офф">
+                <div style="padding:24px;overflow-x:auto;">
+                    @{
+                        var playoffStages = _t.Stages
+                            .Where(s => s.Type is StageType.Playoffs or StageType.GrandFinals)
+                            .OrderBy(s => s.Order).ToList();
+                    }
+                    @if (playoffStages.Any())
+                    {
+                        <div style="display:flex;gap:0;align-items:stretch;min-width:@(playoffStages.Count * 220)px;">
+                            @foreach (var stage in playoffStages)
+                            {
+                                <div style="flex:1;min-width:200px;padding:0 8px;">
+                                    <div style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--t4);margin-bottom:16px;text-align:center;">@stage.Name</div>
+                                    <div style="display:flex;flex-direction:column;gap:12px;justify-content:space-around;height:100%;">
+                                        @foreach (var m in stage.Matches.OrderBy(x => x.ScheduledAt))
+                                        {
+                                            <div style="background:var(--bg2);border:1px solid @(m.WinnerId.HasValue?"var(--border2)":"var(--border)");border-radius:8px;overflow:hidden;cursor:pointer;transition:all 0.15s;"
+                                                 @onclick="@(() => Nav.NavigateTo($"/matches/{m.Id}"))">
+                                                <!-- Team A -->
+                                                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:@(m.WinnerId==m.TeamAId?"rgba(34,197,94,0.05)":"transparent");">
+                                                    <div style="width:22px;height:22px;border-radius:4px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--red);flex-shrink:0;">
+                                                        @if (!string.IsNullOrEmpty(m.TeamA?.LogoUrl)) { <img src="@m.TeamA.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                                                        else { <span>@(m.TeamA?.Tag?.Substring(0,Math.Min(2,m.TeamA?.Tag?.Length??1))??"?")</span> }
+                                                    </div>
+                                                    <span style="font-size:12px;font-weight:@(m.WinnerId==m.TeamAId?"800":"600");color:@(m.WinnerId==m.TeamAId?"var(--green)":m.WinnerId.HasValue?"var(--t4)":"var(--t1)");flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                                        @(m.TeamA?.Name ?? "TBD")
+                                                    </span>
+                                                    @if (m.TeamAScore.HasValue)
+                                                    { <span style="font-size:14px;font-weight:900;color:@(m.WinnerId==m.TeamAId?"var(--green)":"var(--t3)");font-variant-numeric:tabular-nums;flex-shrink:0;">@m.TeamAScore</span> }
+                                                </div>
+                                                <!-- Team B -->
+                                                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:@(m.WinnerId==m.TeamBId?"rgba(34,197,94,0.05)":"transparent");">
+                                                    <div style="width:22px;height:22px;border-radius:4px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--red);flex-shrink:0;">
+                                                        @if (!string.IsNullOrEmpty(m.TeamB?.LogoUrl)) { <img src="@m.TeamB.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                                                        else { <span>@(m.TeamB?.Tag?.Substring(0,Math.Min(2,m.TeamB?.Tag?.Length??1))??"?")</span> }
+                                                    </div>
+                                                    <span style="font-size:12px;font-weight:@(m.WinnerId==m.TeamBId?"800":"600");color:@(m.WinnerId==m.TeamBId?"var(--green)":m.WinnerId.HasValue?"var(--t4)":"var(--t1)");flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                                        @(m.TeamB?.Name ?? "TBD")
+                                                    </span>
+                                                    @if (m.TeamBScore.HasValue)
+                                                    { <span style="font-size:14px;font-weight:900;color:@(m.WinnerId==m.TeamBId?"var(--green)":"var(--t3)");font-variant-numeric:tabular-nums;flex-shrink:0;">@m.TeamBScore</span> }
+                                                </div>
+                                                <!-- Format + date -->
+                                                <div style="padding:4px 10px;background:var(--bg3);border-top:1px solid var(--border);display:flex;justify-content:space-between;">
+                                                    <span class="badge-fmt">@m.Format.ToString().ToUpper()</span>
+                                                    <span style="font-size:9px;color:var(--t4);">@m.ScheduledAt.ToLocalTime().ToString("dd MMM")</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (!stage.Matches.Any())
+                                        {
+                                            <div style="background:var(--bg2);border:1px dashed var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--t4);font-size:12px;">Матчи не назначены</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </MudTabPanel>
+        }
+
+        <!-- Group stage -->
+        @if (_t.Stages.Any(s => s.Type == StageType.GroupStage))
+        {
+            <MudTabPanel Text="Группы">
+                @foreach (var stage in _t.Stages.Where(s => s.Type == StageType.GroupStage).OrderBy(s => s.Order))
+                {
+                    <div class="sec"><div class="sec-title">@stage.Name</div></div>
+                    @if (!stage.Matches.Any())
+                    { <div style="padding:16px 24px;color:var(--t3);font-size:13px;">Матчи не назначены</div> }
+                    @foreach (var m in stage.Matches.OrderBy(x => x.ScheduledAt))
+                    { <MatchCard Match="m" /> }
+                }
+            </MudTabPanel>
+        }
+
+        <!-- All matches -->
+        <MudTabPanel Text="Все матчи">
+            @if (!AllMatches.Any())
+            { <div style="padding:32px;text-align:center;color:var(--t3);font-size:13px;">Нет матчей</div> }
+            @foreach (var m in AllMatches) { <MatchCard Match="m" /> }
+        </MudTabPanel>
+
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private Tournament? _t;
+    private bool _loading = true;
+
+    private IEnumerable<Match> AllMatches => _t?.Stages.SelectMany(s => s.Matches).OrderBy(m => m.ScheduledAt) ?? Enumerable.Empty<Match>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await TournamentService.GetDetailAsync(Id);
+        _loading = false;
+    }
+
+    private string PlaceClr(int p) => p switch { 1 => "#FFD700", 2 => "#C0C0C0", 3 => "#CD7F32", _ => "var(--t4)" };
+    private string TierBg(TournamentTier t) => t switch { TournamentTier.S => "rgba(255,215,0,0.1)", TournamentTier.A => "var(--red-a)", TournamentTier.B => "var(--purple-a)", _ => "var(--bg3)" };
+    private string TierClr(TournamentTier t) => t switch { TournamentTier.S => "#FFD700", TournamentTier.A => "var(--red)", TournamentTier.B => "var(--purple)", _ => "var(--t3)" };
+    private string StatusBg(TournamentStatus s) => s switch { TournamentStatus.Ongoing => "rgba(34,197,94,0.1)", TournamentStatus.Upcoming => "rgba(59,130,246,0.1)", _ => "var(--bg3)" };
+    private string StatusClr(TournamentStatus s) => s switch { TournamentStatus.Ongoing => "var(--green)", TournamentStatus.Upcoming => "var(--blue)", _ => "var(--t3)" };
+    private string StatusLbl(TournamentStatus s) => s switch { TournamentStatus.Ongoing => "Активен", TournamentStatus.Upcoming => "Предстоит", _ => "Завершён" };
+}

@@ -1,0 +1,184 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">
+        Заявки про-игроков
+        @if (_pending.Count > 0)
+        { <span style="margin-left:8px;background:var(--accent);color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;">@_pending.Count</span> }
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button class="btn-sm @(_filter=="all"?"btn-active":"")" @onclick='()=>_filter="all"'>Все (@_all.Count)</button>
+        <button class="btn-sm @(_filter=="pending"?"btn-active":"")" @onclick='()=>_filter="pending"'>Ожидают (@_pending.Count)</button>
+        <button class="btn-sm @(_filter=="approved"?"btn-active":"")" @onclick='()=>_filter="approved"'>Одобрены</button>
+        <button class="btn-sm @(_filter=="rejected"?"btn-active":"")" @onclick='()=>_filter="rejected"'>Отклонены</button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    @for (int i = 0; i < 3; i++) { <div style="padding:14px;border-bottom:1px solid var(--border);"><MudSkeleton Height="48px" /></div> }
+}
+else if (!_filtered.Any())
+{
+    <div style="padding:48px;text-align:center;color:var(--t3);">
+        <div style="font-size:28px;margin-bottom:12px;opacity:.3;">📋</div>
+        <div>Нет заявок</div>
+    </div>
+}
+else
+{
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <table class="hda-table">
+            <thead>
+                <tr>
+                    <th>Игрок</th>
+                    <th>Пользователь</th>
+                    <th>Роль</th>
+                    <th>Команда</th>
+                    <th>Steam ID</th>
+                    <th>Статус</th>
+                    <th>Подана</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _filtered)
+                {
+                    <tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;background:var(--bg3);flex-shrink:0;">
+                                    @if (!string.IsNullOrEmpty(p.AvatarUrl))
+                                    { <img src="@p.AvatarUrl" style="width:100%;height:100%;object-fit:cover;" /> }
+                                    else
+                                    { <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px;">🎮</div> }
+                                </div>
+                                <div>
+                                    <div style="font-weight:700;color:var(--t1);">@p.Nickname</div>
+                                    @if (!string.IsNullOrEmpty(p.RealName))
+                                    { <div style="font-size:10px;color:var(--t4);">@p.RealName</div> }
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color:var(--t2);font-size:12px;">@(p.User?.Username ?? "—")</td>
+                        <td style="color:var(--t2);font-size:12px;">@RoleLbl(p.Role)</td>
+                        <td style="color:var(--t2);font-size:12px;">@(p.Team?.Name ?? "—")</td>
+                        <td style="color:var(--t4);font-size:11px;font-family:var(--font-mono);">@(p.SteamId ?? "—")</td>
+                        <td><span style="@StatusStyle(p.Status)">@StatusLbl(p.Status)</span></td>
+                        <td style="color:var(--t4);font-size:11px;font-family:var(--font-mono);">@p.CreatedAt.ToString("dd.MM.yy")</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                @if (p.Status == ProPlayerStatus.PendingApproval)
+                                {
+                                    <button class="btn-sm" style="border-color:var(--green);color:var(--green);font-size:9px;padding:4px 8px;"
+                                            @onclick="@(()=>Approve(p))">✓ Одобрить</button>
+                                    <button class="btn-sm" style="border-color:var(--accent);color:var(--accent);font-size:9px;padding:4px 8px;"
+                                            @onclick="@(()=>Reject(p))">✗ Отклонить</button>
+                                }
+                                else if (p.Status == ProPlayerStatus.Approved)
+                                {
+                                    <button class="btn-sm" style="border-color:var(--accent);color:var(--accent);font-size:9px;padding:4px 8px;"
+                                            @onclick="@(()=>Reject(p))">✗ Отозвать</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-sm" style="border-color:var(--green);color:var(--green);font-size:9px;padding:4px 8px;"
+                                            @onclick="@(()=>Approve(p))">✓ Одобрить</button>
+                                }
+                                <button class="btn-sm" style="border-color:var(--accent);color:var(--accent);font-size:9px;padding:4px 8px;"
+                                        @onclick="@(()=>Delete(p))">🗑</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<ProPlayer> _all = [];
+    private string _filter = "pending";
+    private bool _loading = true;
+
+    private List<ProPlayer> _pending => _all.Where(p => p.Status == ProPlayerStatus.PendingApproval).ToList();
+    private IEnumerable<ProPlayer> _filtered => _filter switch
+    {
+        "pending"  => _all.Where(p => p.Status == ProPlayerStatus.PendingApproval),
+        "approved" => _all.Where(p => p.Status == ProPlayerStatus.Approved),
+        "rejected" => _all.Where(p => p.Status == ProPlayerStatus.Rejected),
+        _          => _all
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _all = await Db.ProPlayers
+            .Include(p => p.User)
+            .Include(p => p.Team)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private async Task Approve(ProPlayer p)
+    {
+        p.Status = ProPlayerStatus.Approved;
+        p.UpdatedAt = DateTime.UtcNow;
+        // Also set user role to ProPlayer
+        var user = await Db.Users.FindAsync(p.UserId);
+        if (user != null) user.Role = UserRole.ProPlayer;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{p.Nickname} одобрен как про-игрок", Severity.Success);
+        await Load();
+    }
+
+    private async Task Reject(ProPlayer p)
+    {
+        p.Status = ProPlayerStatus.Rejected;
+        p.UpdatedAt = DateTime.UtcNow;
+        // Downgrade user role if was ProPlayer
+        var user = await Db.Users.FindAsync(p.UserId);
+        if (user?.Role == UserRole.ProPlayer) user.Role = UserRole.Regular;
+        await Db.SaveChangesAsync();
+        Snackbar.Add($"{p.Nickname} отклонён", Severity.Warning);
+        await Load();
+    }
+
+    private async Task Delete(ProPlayer p)
+    {
+        Db.ProPlayers.Remove(p);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Заявка удалена", Severity.Info);
+        await Load();
+    }
+
+    private string StatusLbl(ProPlayerStatus s) => s switch
+    {
+        ProPlayerStatus.Approved => "Одобрен",
+        ProPlayerStatus.Rejected => "Отклонён",
+        _ => "Ожидает"
+    };
+    private string StatusStyle(ProPlayerStatus s) => s switch
+    {
+        ProPlayerStatus.Approved => "font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);font-family:var(--font-display);",
+        ProPlayerStatus.Rejected => "font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(232,64,87,.12);color:var(--accent);font-family:var(--font-display);",
+        _ => "font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(255,184,0,.12);color:var(--gold);font-family:var(--font-display);"
+    };
+    private string RoleLbl(PlayerRole r) => r switch
+    {
+        PlayerRole.Carry => "Керри", PlayerRole.Midlaner => "Мид", PlayerRole.Offlaner => "Офлейн",
+        PlayerRole.SoftSupport => "Саппорт 4", PlayerRole.HardSupport => "Саппорт 5", _ => "—"
+    };
+}

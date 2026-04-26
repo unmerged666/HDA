@@ -1,0 +1,68 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@inject NavigationManager Nav
+
+<div class="match-row @(IsLive ? "live" : "")" @onclick="@(() => Nav.NavigateTo($"/matches/{Match.Id}"))">
+    <!-- Team A -->
+    <div class="team-side @WC(Match.TeamAId)">
+        <div class="team-logo">
+            @if (!string.IsNullOrEmpty(Match.TeamA?.LogoUrl))
+            { <img src="@Match.TeamA.LogoUrl" alt="@Match.TeamA.Name" style="width:100%;height:100%;object-fit:contain;" /> }
+            else
+            { <span>@(Match.TeamA?.Tag?.Substring(0,Math.Min(2,Match.TeamA?.Tag?.Length??0))??"?")</span> }
+        </div>
+        <div>
+            <div class="team-name">@(Match.TeamA?.Name ?? "—")</div>
+            <div class="team-sub">@Match.TeamA?.Tag · @Match.TeamA?.Region</div>
+        </div>
+    </div>
+
+    <!-- Center -->
+    <div class="mc">
+        @if (IsLive)
+        {
+            <span class="badge-live">LIVE</span>
+            <div class="mc-score" style="margin-top:4px;">@Match.TeamAScore — @Match.TeamBScore</div>
+        }
+        else if (Match.Status == MatchStatus.Completed)
+        {
+            <div class="mc-score">
+                <span class="@(Match.WinnerId==Match.TeamAId?"score-w":"score-l")">@Match.TeamAScore</span>
+                <span style="color:var(--t4);"> — </span>
+                <span class="@(Match.WinnerId==Match.TeamBId?"score-w":"score-l")">@Match.TeamBScore</span>
+            </div>
+        }
+        else
+        {
+            <div class="mc-time">@Match.ScheduledAt.ToLocalTime().ToString("HH:mm")</div>
+            <div class="mc-date">@Match.ScheduledAt.ToLocalTime().ToString("dd MMM")</div>
+        }
+        <div class="mc-meta">
+            <span class="badge-fmt">@Match.Format.ToString().ToUpper()</span>
+            @if (Match.TwitchUrl != null || Match.YoutubeUrl != null)
+            { <span class="badge-stream"></span> }
+        </div>
+        <div class="mc-tourn">@Match.Tournament?.Name</div>
+    </div>
+
+    <!-- Team B -->
+    <div class="team-side r @WC(Match.TeamBId)">
+        <div class="team-logo">
+            @if (!string.IsNullOrEmpty(Match.TeamB?.LogoUrl))
+            { <img src="@Match.TeamB.LogoUrl" alt="@Match.TeamB.Name" style="width:100%;height:100%;object-fit:contain;" /> }
+            else
+            { <span>@(Match.TeamB?.Tag?.Substring(0,Math.Min(2,Match.TeamB?.Tag?.Length??0))??"?")</span> }
+        </div>
+        <div style="text-align:right;">
+            <div class="team-name">@(Match.TeamB?.Name ?? "—")</div>
+            <div class="team-sub">@Match.TeamB?.Tag · @Match.TeamB?.Region</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Match Match { get; set; } = null!;
+    [Parameter] public bool IsLive { get; set; }
+    private string WC(int? id) => Match.Status == MatchStatus.Completed
+        ? (Match.WinnerId == id ? "tw" : "tl") : "";
+}

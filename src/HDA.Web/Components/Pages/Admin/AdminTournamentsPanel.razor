@@ -1,0 +1,143 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🎯 Турниры (@_tourns.Count)</div>
+    <button class="btn-red" style="font-size:10px;padding:8px 16px;" @onclick="NewTourn">+ Добавить турнир</button>
+</div>
+
+@if (_editing != null)
+{
+    <div style="background:var(--bg2);border:2px solid var(--accent);border-radius:12px;padding:24px;margin-bottom:20px;animation:fadeUp .2s ease;">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;font-family:var(--font-display);">
+            @(_editing.Id == 0 ? "➕ Новый турнир" : $"✏ {_editing.Name}")
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudTextField @bind-Value="_editing.Name"      Label="Название"     Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Organizer" Label="Организатор"  Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Region"    Label="Регион"       Variant="Variant.Outlined" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudSelect T="TournamentTier" @bind-Value="_editing.Tier" Label="Tier" Variant="Variant.Outlined">
+                @foreach (TournamentTier t in Enum.GetValues<TournamentTier>()) { <MudSelectItem Value="t">@t</MudSelectItem> }
+            </MudSelect>
+            <MudSelect T="TournamentStatus" @bind-Value="_editing.Status" Label="Статус" Variant="Variant.Outlined">
+                @foreach (TournamentStatus s in Enum.GetValues<TournamentStatus>()) { <MudSelectItem Value="s">@StatusLbl(s)</MudSelectItem> }
+            </MudSelect>
+            <MudNumericField T="decimal" @bind-Value="_editing.PrizePool" Label="Призовой фонд ($)" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Location" Label="Место" Variant="Variant.Outlined" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudDatePicker @bind-Date="_startDate" Label="Дата начала" Variant="Variant.Outlined" />
+            <MudDatePicker @bind-Date="_endDate"   Label="Дата конца"  Variant="Variant.Outlined" />
+        </div>
+        <MudTextField @bind-Value="_editing.LogoUrl"     Label="URL логотипа"  Variant="Variant.Outlined" Class="mb-2" />
+        <MudTextField @bind-Value="_editing.Description" Label="Описание"      Variant="Variant.Outlined" Lines="3"   Class="mb-3" />
+        <div style="display:flex;gap:8px;">
+            <button class="btn-red" style="font-size:10px;padding:8px 20px;" @onclick="SaveTourn" disabled="@_saving">@(_saving?"...":"💾 Сохранить")</button>
+            @if (_editing.Id != 0)
+            { <button class="btn-sm" @onclick="DeleteTourn" style="border-color:var(--accent);color:var(--accent);font-size:10px;padding:8px 14px;">🗑 Удалить</button> }
+            <button class="btn-ghost" style="font-size:10px;padding:8px 16px;" @onclick="@(()=>_editing=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <table class="hda-table">
+        <thead><tr><th>Турнир</th><th>Tier</th><th>Статус</th><th>Призовые</th><th>Даты</th><th></th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<4;i++){<tr><td colspan="6"><MudSkeleton Height="32px"/></td></tr>} }
+            else
+            {
+                @foreach (var t in _tourns)
+                {
+                    <tr>
+                        <td>
+                            <div style="font-weight:600;font-size:13px;">@t.Name</div>
+                            <div style="font-size:10px;color:var(--t4);">@t.Organizer · @t.Region</div>
+                        </td>
+                        <td><span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--gold-a);color:var(--gold);font-family:var(--font-display);">@t.Tier</span></td>
+                        <td><span style="@TStatusStyle(t.Status)">@StatusLbl(t.Status)</span></td>
+                        <td style="color:var(--gold);font-family:var(--font-mono);font-weight:700;font-size:12px;">
+                            @(t.PrizePool>0?$"${t.PrizePool/1000:0}K":"—")
+                        </td>
+                        <td style="font-size:11px;color:var(--t4);font-family:var(--font-mono);">@t.StartDate.ToString("dd.MM")–@t.EndDate.ToString("dd.MM.yy")</td>
+                        <td><button class="btn-sm" @onclick="@(()=>EditTourn(t))" style="font-size:9px;padding:4px 10px;">✏</button></td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<Tournament> _tourns = [];
+    private Tournament? _editing;
+    private DateTime? _startDate, _endDate;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tourns = await Db.Tournaments.OrderByDescending(t=>t.StartDate).ToListAsync();
+        _loading = false;
+    }
+
+    private void NewTourn()
+    {
+        _editing = new Tournament { Status=TournamentStatus.Upcoming, Tier=TournamentTier.A, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow, StartDate=DateTime.UtcNow.AddDays(30), EndDate=DateTime.UtcNow.AddDays(40) };
+        _startDate = _editing.StartDate; _endDate = _editing.EndDate;
+    }
+
+    private void EditTourn(Tournament t)
+    {
+        _editing = new Tournament { Id=t.Id, Name=t.Name, Organizer=t.Organizer, Region=t.Region, Tier=t.Tier, Status=t.Status, PrizePool=t.PrizePool, Location=t.Location, LogoUrl=t.LogoUrl, Description=t.Description, StartDate=t.StartDate, EndDate=t.EndDate, CreatedAt=t.CreatedAt, UpdatedAt=DateTime.UtcNow };
+        _startDate=t.StartDate; _endDate=t.EndDate;
+    }
+
+    private async Task SaveTourn()
+    {
+        if (_editing==null) return; _saving=true;
+        _editing.StartDate = DateTime.SpecifyKind(_startDate ?? DateTime.UtcNow, DateTimeKind.Utc);
+        _editing.EndDate   = DateTime.SpecifyKind(_endDate   ?? DateTime.UtcNow, DateTimeKind.Utc);
+        _editing.UpdatedAt = DateTime.UtcNow;
+        if (_editing.Id==0) { Db.Tournaments.Add(_editing); }
+        else
+        {
+            var e = await Db.Tournaments.FindAsync(_editing.Id);
+            if (e!=null)
+            {
+                e.Name=_editing.Name; e.Organizer=_editing.Organizer; e.Region=_editing.Region;
+                e.Tier=_editing.Tier; e.Status=_editing.Status; e.PrizePool=_editing.PrizePool;
+                e.Location=_editing.Location; e.LogoUrl=_editing.LogoUrl; e.Description=_editing.Description;
+                e.StartDate=_editing.StartDate; e.EndDate=_editing.EndDate; e.UpdatedAt=DateTime.UtcNow;
+            }
+        }
+        await Db.SaveChangesAsync();
+        _tourns = await Db.Tournaments.OrderByDescending(t=>t.StartDate).ToListAsync();
+        _editing=null; _saving=false;
+        Snackbar.Add("Турнир сохранён!", Severity.Success);
+    }
+
+    private async Task DeleteTourn()
+    {
+        if (_editing?.Id==0) return;
+        var e = await Db.Tournaments.FindAsync(_editing!.Id);
+        if (e!=null) { Db.Tournaments.Remove(e); await Db.SaveChangesAsync(); }
+        _tourns = await Db.Tournaments.OrderByDescending(t=>t.StartDate).ToListAsync();
+        _editing=null;
+        Snackbar.Add("Турнир удалён", Severity.Warning);
+    }
+
+    private string StatusLbl(TournamentStatus s) => s switch { TournamentStatus.Ongoing=>"Активен",TournamentStatus.Upcoming=>"Скоро",TournamentStatus.Completed=>"Завершён",_=>"?" };
+    private string TStatusStyle(TournamentStatus s) => s switch
+    {
+        TournamentStatus.Ongoing   => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);",
+        TournamentStatus.Upcoming  => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(75,158,255,.12);color:var(--blue);",
+        _ => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--t3);"
+    };
+}

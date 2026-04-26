@@ -1,0 +1,155 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">Новости (@_articles.Count)</div>
+    <button class="btn-red" style="font-size:10px;padding:8px 16px;" @onclick="NewArticle">+ Новая статья</button>
+</div>
+
+@if (_editing != null)
+{
+    <!-- Edit form -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">
+        <div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
+            @(_editing.Id == 0 ? "Новая статья" : "Редактировать: " + _editing.Title)
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudTextField @bind-Value="_editing.Title"      Label="Заголовок"  Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Slug"       Label="URL (slug)" Variant="Variant.Outlined" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudSelect T="string" @bind-Value="_editing.Category" Label="Категория" Variant="Variant.Outlined">
+                @foreach (var cat in new[]{"Result","Patch","Transfer","Interview","Analysis","News"})
+                { <MudSelectItem Value="cat">@cat</MudSelectItem> }
+            </MudSelect>
+            <MudTextField @bind-Value="_editing.ImageUrl" Label="URL изображения" Variant="Variant.Outlined" />
+        </div>
+        <MudTextField @bind-Value="_editing.Summary" Label="Краткое описание" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+        <MudTextField @bind-Value="_editing.Content" Label="Полный текст" Variant="Variant.Outlined" Lines="6" Class="mb-3" />
+        <div style="display:flex;gap:8px;align-items:center;">
+            <MudCheckBox @bind-Value="_editing.IsPublished" Label="Опубликовать" Color="Color.Error" />
+            <button class="btn-red" style="font-size:10px;padding:8px 20px;" @onclick="SaveArticle" disabled="@_saving">
+                @(_saving ? "Сохранение..." : "💾 Сохранить")
+            </button>
+            <button class="btn-ghost" style="font-size:10px;padding:8px 16px;" @onclick="@(()=>_editing=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <table class="hda-table">
+        <thead>
+            <tr><th>Заголовок</th><th>Категория</th><th>Статус</th><th>Дата</th><th>Действия</th></tr>
+        </thead>
+        <tbody>
+            @if (_loading)
+            { @for(int i=0;i<4;i++){<tr><td colspan="5"><MudSkeleton Height="32px" /></td></tr>} }
+            else
+            {
+                @foreach (var a in _articles)
+                {
+                    <tr>
+                        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">@a.Title</td>
+                        <td><span style="@CatStyle(a.Category)">@a.Category</span></td>
+                        <td><span style="@(a.IsPublished?"color:var(--green)":"color:var(--t4)")">@(a.IsPublished?"✓ Опубл.":"○ Черновик")</span></td>
+                        <td style="font-size:11px;color:var(--t4);font-family:var(--font-mono);">@(a.PublishedAt?.ToString("dd.MM.yy") ?? "—")</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                <button class="btn-sm" @onclick="@(()=>EditArticle(a))" style="font-size:9px;padding:4px 8px;">✏ Правка</button>
+                                <button class="btn-sm" @onclick="@(()=>TogglePublish(a))" style="@(a.IsPublished?"font-size:9px;padding:4px 8px;border-color:var(--t4);color:var(--t4)":"font-size:9px;padding:4px 8px;border-color:var(--green);color:var(--green)")">
+                                    @(a.IsPublished?"Снять":"Публ.")
+                                </button>
+                                <button class="btn-sm" @onclick="@(()=>DeleteArticle(a))" style="font-size:9px;padding:4px 8px;border-color:var(--accent);color:var(--accent);">✕</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    [Inject] AppState AppState { get; set; } = null!;
+    private List<NewsArticle> _articles = [];
+    private NewsArticle? _editing;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _articles = await Db.NewsArticles.OrderByDescending(a => a.CreatedAt).ToListAsync();
+        _loading = false;
+    }
+
+    private void NewArticle() => _editing = new NewsArticle
+    {
+        Category = "News", IsPublished = false,
+        CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow,
+        AuthorId = AppState.CurrentUser!.Id
+    };
+
+    private void EditArticle(NewsArticle a) { _editing = new NewsArticle
+    {
+        Id=a.Id, Title=a.Title, Slug=a.Slug, Summary=a.Summary, Content=a.Content,
+        Category=a.Category, IsPublished=a.IsPublished, AuthorId=a.AuthorId,
+        ImageUrl=a.ImageUrl, PublishedAt=a.PublishedAt, CreatedAt=a.CreatedAt, UpdatedAt=DateTime.UtcNow
+    }; }
+
+    private async Task SaveArticle()
+    {
+        if (_editing == null) return;
+        _saving = true;
+        _editing.UpdatedAt = DateTime.UtcNow;
+        if (_editing.IsPublished && _editing.PublishedAt == null) _editing.PublishedAt = DateTime.UtcNow;
+        if (string.IsNullOrEmpty(_editing.Slug) && !string.IsNullOrEmpty(_editing.Title))
+            _editing.Slug = _editing.Title.ToLower().Replace(" ", "-").Replace("—", "-");
+        if (_editing.Id == 0) { Db.NewsArticles.Add(_editing); }
+        else
+        {
+            var existing = await Db.NewsArticles.FindAsync(_editing.Id);
+            if (existing != null)
+            {
+                existing.Title=_editing.Title; existing.Slug=_editing.Slug;
+                existing.Summary=_editing.Summary; existing.Content=_editing.Content;
+                existing.Category=_editing.Category; existing.IsPublished=_editing.IsPublished;
+                existing.ImageUrl=_editing.ImageUrl; existing.PublishedAt=_editing.PublishedAt;
+                existing.UpdatedAt=DateTime.UtcNow;
+            }
+        }
+        await Db.SaveChangesAsync();
+        _articles = await Db.NewsArticles.OrderByDescending(a=>a.CreatedAt).ToListAsync();
+        _editing = null; _saving = false;
+        Snackbar.Add("Статья сохранена!", Severity.Success);
+    }
+
+    private async Task TogglePublish(NewsArticle a)
+    {
+        a.IsPublished = !a.IsPublished;
+        if (a.IsPublished && a.PublishedAt == null) a.PublishedAt = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        Snackbar.Add(a.IsPublished ? "Опубликовано" : "Снято с публикации", Severity.Info);
+    }
+
+    private async Task DeleteArticle(NewsArticle a)
+    {
+        Db.NewsArticles.Remove(a); _articles.Remove(a);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Удалено", Severity.Warning);
+    }
+
+    private string CatStyle(string? c) => c switch
+    {
+        "Result"    => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);",
+        "Patch"     => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(139,92,246,.12);color:var(--purple);",
+        "Transfer"  => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,184,0,.12);color:var(--gold);",
+        "Interview" => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(75,158,255,.12);color:var(--blue);",
+        "Analysis"  => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(249,115,22,.12);color:#FB923C;",
+        _ => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--t3);"
+    };
+}

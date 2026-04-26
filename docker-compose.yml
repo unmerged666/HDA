@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: hda_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hda_db
+      POSTGRES_USER: hda_user
+      POSTGRES_PASSWORD: hda_pass
+    volumes:
+      - hda_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hda_user -d hda_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hda_net
+
+  # ── HDA Web Application ──────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hda_app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=hda_db;Username=hda_user;Password=hda_pass"
+    volumes:
+      - hda_uploads:/app/wwwroot/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hda_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  hda_pgdata:
+    driver: local
+  hda_uploads:
+    driver: local
+
+networks:
+  hda_net:
+    driver: bridge

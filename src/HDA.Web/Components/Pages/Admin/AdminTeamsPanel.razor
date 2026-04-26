@@ -1,0 +1,135 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🏆 Команды (@_teams.Count)</div>
+    <button class="btn-red" style="font-size:10px;padding:8px 16px;" @onclick="NewTeam">+ Добавить команду</button>
+</div>
+
+@if (_editing != null)
+{
+    <div style="background:var(--bg2);border:2px solid var(--accent);border-radius:12px;padding:24px;margin-bottom:20px;animation:fadeUp .2s ease;">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;font-family:var(--font-display);">
+            @(_editing.Id == 0 ? "➕ Новая команда" : $"✏ Редактирование: {_editing.Name}")
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudTextField @bind-Value="_editing.Name"   Label="Название"  Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Tag"    Label="Тег (аббр)" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Region" Label="Регион"    Variant="Variant.Outlined" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudTextField @bind-Value="_editing.Country"      Label="Страна"      Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Organization" Label="Организация" Variant="Variant.Outlined" />
+            <MudNumericField @bind-Value="_editing.RatingPoints" Label="Рейтинг"  Variant="Variant.Outlined" />
+            <MudNumericField @bind-Value="_editing.WorldRank"    Label="Мировой ранг" Variant="Variant.Outlined" />
+        </div>
+        <MudTextField @bind-Value="_editing.LogoUrl" Label="URL логотипа" Variant="Variant.Outlined" Class="mb-3" />
+        <div style="display:flex;gap:8px;">
+            <button class="btn-red" style="font-size:10px;padding:8px 20px;" @onclick="SaveTeam" disabled="@_saving">
+                @(_saving ? "Сохранение..." : "💾 Сохранить")
+            </button>
+            @if (_editing.Id != 0)
+            {
+                <button class="btn-sm" @onclick="DeleteTeam" style="border-color:var(--accent);color:var(--accent);font-size:10px;padding:8px 16px;">🗑 Удалить</button>
+            }
+            <button class="btn-ghost" style="font-size:10px;padding:8px 16px;" @onclick="@(()=>_editing=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <table class="hda-table">
+        <thead><tr><th>#</th><th>Команда</th><th>Регион</th><th>Рейтинг</th><th>Ранг</th><th>Действия</th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<5;i++){<tr><td colspan="6"><MudSkeleton Height="32px"/></td></tr>} }
+            else
+            {
+                @foreach (var t in _teams.OrderBy(x=>x.WorldRank))
+                {
+                    <tr>
+                        <td style="color:var(--t4);font-family:var(--font-mono);font-size:12px;">@t.Id</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="width:28px;height:28px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--accent);position:relative;">
+                                    @if (!string.IsNullOrEmpty(t.LogoUrl)) { <img src="@t.LogoUrl" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;" /> }
+                                    else { @(t.Tag.Length>2?t.Tag[..2]:t.Tag) }
+                                </div>
+                                <div>
+                                    <div style="font-weight:600;font-size:13px;">@t.Name</div>
+                                    <div style="font-size:10px;color:var(--t4);font-family:var(--font-display);">@t.Tag</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color:var(--t3);font-size:12px;">@t.Region</td>
+                        <td style="color:var(--accent);font-weight:700;font-family:var(--font-mono);">@t.RatingPoints</td>
+                        <td style="color:var(--gold);font-weight:700;font-family:var(--font-mono);">#@t.WorldRank</td>
+                        <td>
+                            <button class="btn-sm" @onclick="@(()=>EditTeam(t))" style="font-size:9px;padding:4px 10px;">✏ Правка</button>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<Team> _teams = [];
+    private Team? _editing;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _loading = false;
+    }
+
+    private void NewTeam() => _editing = new Team { CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow };
+    private void EditTeam(Team t) => _editing = new Team
+    {
+        Id=t.Id, Name=t.Name, Tag=t.Tag, Region=t.Region, Country=t.Country,
+        Organization=t.Organization, RatingPoints=t.RatingPoints, WorldRank=t.WorldRank,
+        LogoUrl=t.LogoUrl, Founded=t.Founded, CreatedAt=t.CreatedAt, UpdatedAt=DateTime.UtcNow
+    };
+
+    private async Task SaveTeam()
+    {
+        if (_editing == null) return;
+        _saving = true;
+        _editing.UpdatedAt = DateTime.UtcNow;
+        if (_editing.Id == 0)
+        {
+            Db.Teams.Add(_editing);
+        }
+        else
+        {
+            var e = await Db.Teams.FindAsync(_editing.Id);
+            if (e != null)
+            {
+                e.Name=_editing.Name; e.Tag=_editing.Tag; e.Region=_editing.Region;
+                e.Country=_editing.Country; e.Organization=_editing.Organization;
+                e.RatingPoints=_editing.RatingPoints; e.WorldRank=_editing.WorldRank;
+                e.LogoUrl=_editing.LogoUrl; e.UpdatedAt=DateTime.UtcNow;
+            }
+        }
+        await Db.SaveChangesAsync();
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _editing = null; _saving = false;
+        Snackbar.Add("Команда сохранена!", Severity.Success);
+    }
+
+    private async Task DeleteTeam()
+    {
+        if (_editing == null || _editing.Id == 0) return;
+        var e = await Db.Teams.FindAsync(_editing.Id);
+        if (e != null) { Db.Teams.Remove(e); await Db.SaveChangesAsync(); }
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _editing = null;
+        Snackbar.Add("Команда удалена", Severity.Warning);
+    }
+}

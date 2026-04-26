@@ -1,0 +1,192 @@
+@page "/"
+@inject IMatchService MatchService
+@inject INewsService NewsService
+@inject ITeamService TeamService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>HDA.gg — High Dota Analytics</PageTitle>
+
+<!-- Hero banner -->
+<div class="landing-hero">
+    <div class="hero-bg-glow"></div>
+    <div class="hero-bg-grid"></div>
+    <div class="hero-grid"></div>
+    <div class="hero-text-bg"></div>
+    <div style="position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:32px;flex-wrap:wrap;">
+        <!-- Left -->
+        <div style="flex:1;min-width:260px;max-width:560px;" class="hda-fadein">
+            <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(232,64,87,.08);border:1px solid rgba(232,64,87,.35);border-radius:20px;padding:5px 14px 5px 10px;margin-bottom:20px;position:relative;z-index:3;animation:fadeUp .4s ease .1s both;">
+                <span style="width:6px;height:6px;border-radius:50%;background:#E84057;flex-shrink:0;animation:pulse-dot 1.4s ease-in-out infinite;box-shadow:0 0 6px rgba(232,64,87,.8);"></span>
+                <span style="font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#E84057;font-family:var(--font-display);">Профессиональная аналитика Dota 2</span>
+            </div>
+            <h1 style="font-size:clamp(32px,4vw,56px);font-weight:800;line-height:1.0;letter-spacing:-2px;margin:0 0 16px;color:var(--t1);font-family:var(--font-display);">
+                HIGH DOTA<br>
+                <span style="color:#E84057;">ANALYTICS</span>
+            </h1>
+            <p style="font-size:14px;color:var(--t2);line-height:1.8;margin:0 0 28px;max-width:460px;">
+                Полная статистика профессиональной сцены Dota 2. Результаты матчей в реальном времени, рейтинги команд, глубокая аналитика.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a href="/matches" class="btn-red">▶ Смотреть матчи</a>
+                <a href="/teams" class="btn-ghost">Рейтинг команд</a>
+                <a href="/heroes" class="btn-ghost">Все герои</a>
+            </div>
+        </div>
+        <!-- Stat cards -->
+        <div style="display:flex;gap:12px;flex-shrink:0;flex-wrap:wrap;" class="hda-fadein-2">
+            <div class="hs-card">
+                <div class="hs-val r">@_live.Count</div>
+                <div class="hs-lbl">Live сейчас</div>
+            </div>
+            <div class="hs-card">
+                <div class="hs-val">@_teamCount</div>
+                <div class="hs-lbl">Команд</div>
+            </div>
+            <div class="hs-card">
+                <div class="hs-val">@_matchCount</div>
+                <div class="hs-lbl">Матчей</div>
+            </div>
+            <div class="hs-card">
+                <div class="hs-val" style="color:var(--gold);">@_newsCount</div>
+                <div class="hs-lbl">Новостей</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main layout -->
+<div class="hda-layout">
+    <!-- Content column -->
+    <div class="hda-content">
+        @if (_live.Any())
+        {
+            <div class="sec">
+                <div class="sec-title">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#E84057;animation:pulse-dot 1.2s infinite;display:inline-block;flex-shrink:0;box-shadow:0 0 8px rgba(232,64,87,.7);"></span>
+                    Live матчи
+                </div>
+                <a href="/matches" class="sec-link">@_live.Count матча ›</a>
+            </div>
+            @foreach (var m in _live) { <MatchCard Match="m" IsLive="true" /> }
+        }
+
+        <div class="sec">
+            <div class="sec-title">Предстоящие матчи</div>
+            <a href="/matches" class="sec-link">Все матчи ›</a>
+        </div>
+        @if (_loading)
+        {
+            @for (int i = 0; i < 5; i++) { <div style="padding:14px 20px;border-bottom:1px solid var(--border);"><MudSkeleton Height="48px" /></div> }
+        }
+        else if (!_upcoming.Any())
+        {
+            <div style="padding:32px;text-align:center;color:var(--t3);">
+                <div style="font-size:28px;margin-bottom:10px;opacity:.3;">🎮</div>
+                <div style="font-size:13px;">Нет запланированных матчей</div>
+                <a href="/matches" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block;">Смотреть результаты →</a>
+            </div>
+        }
+        else
+        { @foreach (var m in _upcoming) { <MatchCard Match="m" /> } }
+
+        <div class="sec">
+            <div class="sec-title">Последние результаты</div>
+            <a href="/matches" class="sec-link">Все результаты ›</a>
+        </div>
+        @if (!_recent.Any())
+        { <div style="padding:24px;text-align:center;color:var(--t3);font-size:12px;">Нет завершённых матчей</div> }
+        @foreach (var m in _recent.Take(6)) { <MatchCard Match="m" /> }
+    </div>
+
+    <!-- Sidebar -->
+    <div class="hda-sidebar">
+        <!-- News -->
+        <div class="sec">
+            <div class="sec-title">Новости</div>
+            <a href="/news" class="sec-link">Все ›</a>
+        </div>
+        @if (!_news.Any())
+        { <div style="padding:16px;text-align:center;color:var(--t3);font-size:12px;">Новостей пока нет</div> }
+        @foreach (var n in _news.Take(8))
+        {
+            <div class="news-item" @onclick="@(() => Nav.NavigateTo($"/news/{n.Slug}"))">
+                <div class="news-cat @CatClass(n.Category)">@CatLbl(n.Category)</div>
+                <div class="news-ttl">@n.Title</div>
+                <div class="news-meta">@n.Author?.Username · @n.PublishedAt?.ToString("dd MMM yyyy")</div>
+            </div>
+        }
+
+        <!-- Rankings -->
+        <div class="sec" style="margin-top:4px;">
+            <div class="sec-title">Рейтинг команд</div>
+            <a href="/teams" class="sec-link">Все ›</a>
+        </div>
+        @{ int rn = 1; }
+        @foreach (var t in _teams.Take(10))
+        {
+            var r = rn;
+            <div class="rank-row" @onclick="@(() => Nav.NavigateTo($"/teams/{t.Id}"))">
+                <span class="rn @RnClass(r)">@r</span>
+                <div class="team-logo" style="width:24px;height:24px;font-size:8px;border-radius:4px;">
+                    @if (!string.IsNullOrEmpty(t.LogoUrl)) { <img src="@t.LogoUrl" alt="@t.Tag" style="width:100%;height:100%;object-fit:contain;" /> }
+                    else { <span>@(t.Tag.Length>=2?t.Tag[..2]:t.Tag)</span> }
+                </div>
+                <span class="rank-name">@t.Name</span>
+                <span class="rank-pts">@t.RatingPoints</span>
+            </div>
+            rn++;
+        }
+
+        <!-- Active tournament banner -->
+        @if (_activeTournament != null)
+        {
+            <div class="sec" style="margin-top:4px;">
+                <div class="sec-title">Активный турнир</div>
+                <a href="/tournaments" class="sec-link">Подробнее ›</a>
+            </div>
+            <div style="padding:14px 18px;cursor:pointer;transition:background .15s;" @onclick="@(()=>Nav.NavigateTo($"/tournaments/{_activeTournament.Id}"))">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse-dot 1.5s infinite;flex-shrink:0;box-shadow:0 0 8px rgba(22,199,132,.6);"></span>
+                    <span style="font-size:13px;font-weight:700;color:var(--t1);font-family:var(--font-display);">@_activeTournament.Name</span>
+                </div>
+                @if (_activeTournament.PrizePool > 0)
+                { <div style="font-size:11px;color:var(--gold);font-family:var(--font-mono);">💰 $@(_activeTournament.PrizePool>=1_000_000?$"{_activeTournament.PrizePool/1_000_000:0.##}M":$"{_activeTournament.PrizePool/1_000:0}K")</div> }
+                @if (!string.IsNullOrEmpty(_activeTournament.Location))
+                { <div style="font-size:10px;color:var(--t4);margin-top:4px;">📍 @_activeTournament.Location</div> }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    [Inject] ITournamentService TournamentService { get; set; } = null!;
+    private List<Match> _upcoming=[], _recent=[], _live=[];
+    private List<NewsArticle> _news=[];
+    private List<Team> _teams=[];
+    private Tournament? _activeTournament;
+    private int _teamCount, _matchCount, _newsCount;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _live      = await MatchService.GetLiveAsync();
+        _upcoming  = await MatchService.GetUpcomingAsync(8);
+        _recent    = await MatchService.GetRecentAsync(8);
+        _news      = await NewsService.GetPublishedAsync(pageSize: 8);
+        _teams     = await TeamService.GetRankingsAsync();
+        var tournaments = await TournamentService.GetAllAsync();
+        _activeTournament = tournaments.FirstOrDefault(t => t.Status == TournamentStatus.Ongoing);
+        _teamCount  = _teams.Count;
+        _matchCount = _recent.Count + _upcoming.Count;
+        _newsCount  = _news.Count;
+        _loading = false;
+    }
+
+    private string CatClass(string? c) => c switch { "Result"=>"nc-result","Transfer"=>"nc-transfer","Patch"=>"nc-patch","Interview"=>"nc-interview","Analysis"=>"nc-analysis",_=>"nc-news" };
+    private string CatLbl(string? c) => c switch { "Result"=>"Результат","Transfer"=>"Трансфер","Patch"=>"Патч","Interview"=>"Интервью","Analysis"=>"Аналитика",_=>"Новость" };
+    private string RnClass(int r) => r switch { 1=>"rn-1",2=>"rn-2",3=>"rn-3",_=>"rn-x" };
+}

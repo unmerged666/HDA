@@ -1,0 +1,191 @@
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@implements IDisposable
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:calc(100vh - 300px);min-height:500px;">
+    <!-- Main console -->
+    <div style="display:flex;flex-direction:column;gap:0;">
+        <!-- Output -->
+        <div id="console-output" style="flex:1;background:#020508;border:1px solid var(--border);border-radius:10px 10px 0 0;padding:16px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:12px;min-height:300px;">
+            @foreach (var line in _lines)
+            {
+                <div class="console-line @line.Cls" style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03);">
+                    <span style="color:var(--t4);margin-right:8px;user-select:none;">@line.Time</span>@line.Text
+                </div>
+            }
+            @if (_running)
+            {
+                <div class="console-line info" style="animation:pulse-dot 1s infinite;">⟳ Выполняется...</div>
+            }
+        </div>
+        <!-- Input -->
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;overflow:hidden;">
+            <div style="background:#030508;padding:10px 14px;color:var(--accent);font-family:'DM Mono',monospace;font-size:12px;font-weight:700;flex-shrink:0;">hda@sql $</div>
+            <input @bind="_input" @bind:event="oninput" @onkeydown="OnKey"
+                   placeholder="SELECT * FROM &quot;Teams&quot; ORDER BY &quot;WorldRank&quot;; или команда..."
+                   style="flex:1;background:#030508;border:none;outline:none;padding:10px 12px;font-size:12px;color:var(--t1);font-family:'DM Mono',monospace;" />
+            <button class="adm-btn adm-btn-primary" style="border-radius:0;padding:10px 20px;" @onclick="Execute" disabled="@_running">
+                ▶ Run
+            </button>
+        </div>
+    </div>
+
+    <!-- Sidebar: quick commands -->
+    <div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--t3);text-transform:uppercase;font-family:var(--font-display);">Быстрые команды</div>
+        @foreach (var (cat, cmds) in _quickCmds)
+        {
+            <div>
+                <div style="font-size:9px;color:var(--t4);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font-display);">@cat</div>
+                @foreach (var (lbl, cmd) in cmds)
+                {
+                    <button @onclick="@(()=>{ _input=cmd; })"
+                            style="display:block;width:100%;text-align:left;padding:7px 10px;font-size:10px;font-family:'DM Mono',monospace;color:var(--t2);background:var(--bg2);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-bottom:4px;transition:all .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        @lbl
+                    </button>
+                }
+            </div>
+        }
+        <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <button class="adm-btn adm-btn-danger" style="width:100%;justify-content:center;" @onclick="ClearConsole">🗑 Очистить консоль</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private string _input = "";
+    private List<ConsoleLine> _lines = [];
+    private bool _running;
+    private List<string> _history = [];
+    private int _hIdx = -1;
+
+    record ConsoleLine(string Text, string Cls, string Time);
+
+    private readonly (string, (string, string)[])[] _quickCmds = [
+        ("СТАТИСТИКА", [
+            ("Все команды","SELECT \"Id\",\"Name\",\"Tag\",\"RatingPoints\",\"WorldRank\" FROM \"Teams\" ORDER BY \"WorldRank\""),
+            ("Все матчи","SELECT \"Id\",\"Status\",\"ScheduledAt\",\"TeamAScore\",\"TeamBScore\" FROM \"Matches\" ORDER BY \"ScheduledAt\" DESC LIMIT 20"),
+            ("Все турниры","SELECT \"Id\",\"Name\",\"Status\",\"PrizePool\" FROM \"Tournaments\" ORDER BY \"StartDate\" DESC"),
+            ("Пользователи","SELECT \"Id\",\"Username\",\"Email\",\"Role\",\"IsActive\" FROM \"Users\""),
+            ("Про-игроки","SELECT \"Id\",\"Nickname\",\"RealName\",\"Country\",\"Status\" FROM \"ProPlayers\""),
+        ]),
+        ("ОБСЛУЖИВАНИЕ", [
+            ("Кол-во записей","SELECT 'Users' t,COUNT(*) FROM \"Users\" UNION ALL SELECT 'Teams',COUNT(*) FROM \"Teams\" UNION ALL SELECT 'Matches',COUNT(*) FROM \"Matches\" UNION ALL SELECT 'News',COUNT(*) FROM \"NewsArticles\""),
+            ("Последние логи","SELECT l.\"Action\",l.\"Details\",l.\"CreatedAt\" FROM \"ActivityLogs\" l ORDER BY l.\"CreatedAt\" DESC LIMIT 10"),
+            ("Версия PG","SELECT version()"),
+        ]),
+        ("РЕДАКТИРОВАНИЕ", [
+            ("Топ рейтинг +100","UPDATE \"Teams\" SET \"RatingPoints\"=\"RatingPoints\"+100 WHERE \"WorldRank\"=1"),
+            ("Опубл. все новости","UPDATE \"NewsArticles\" SET \"IsPublished\"=true WHERE \"IsPublished\"=false"),
+            ("Сбросить ранги","UPDATE \"Teams\" SET \"WorldRank\"=sub.rn FROM (SELECT \"Id\",ROW_NUMBER() OVER(ORDER BY \"RatingPoints\" DESC) as rn FROM \"Teams\") sub WHERE \"Teams\".\"Id\"=sub.\"Id\""),
+        ]),
+    ];
+
+    protected override void OnInitialized()
+    {
+        Log("Консоль HDA.gg готова. Введите SQL-запрос или команду.", "ok");
+        Log("Подключено к: hda_db (PostgreSQL)", "info");
+        Log("Примеры: SELECT * FROM \"Teams\"; или /help", "info");
+    }
+
+    private async Task Execute()
+    {
+        var q = _input.Trim();
+        if (string.IsNullOrEmpty(q)) return;
+        _history.Insert(0, q); _hIdx = -1;
+        Log($"$ {q}", "info");
+        _input = "";
+        _running = true;
+        StateHasChanged();
+
+        try
+        {
+            if (q.StartsWith("/"))
+            {
+                await HandleCommand(q);
+            }
+            else if (q.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+            {
+                await ExecuteQuery(q);
+            }
+            else
+            {
+                var affected = await Db.Database.ExecuteSqlRawAsync(q);
+                Log($"✓ Выполнено. Затронуто строк: {affected}", "ok");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"✗ Ошибка: {ex.Message}", "err");
+        }
+        _running = false;
+    }
+
+    private async Task ExecuteQuery(string sql)
+    {
+        var conn = Db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        using var reader = await cmd.ExecuteReaderAsync();
+        var cols = Enumerable.Range(0, reader.FieldCount).Select(i => reader.GetName(i)).ToList();
+        Log("┌ " + string.Join(" │ ", cols.Select(c => c.PadRight(12))), "ok");
+        int rows = 0;
+        while (await reader.ReadAsync() && rows < 100)
+        {
+            var vals = cols.Select((c,i) => (reader.IsDBNull(i) ? "NULL" : reader[i]?.ToString()??"").PadRight(12)).ToList();
+            Log("│ " + string.Join(" │ ", vals), "");
+            rows++;
+        }
+        Log($"└ {rows} строк", "ok");
+        await conn.CloseAsync();
+    }
+
+    private async Task HandleCommand(string cmd)
+    {
+        switch (cmd.ToLower())
+        {
+            case "/help":
+                Log("Команды: /help /clear /tables /version", "info");
+                Log("Или вводите SQL напрямую.", "info");
+                break;
+            case "/clear": ClearConsole(); break;
+            case "/tables":
+                await ExecuteQuery("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name");
+                break;
+            case "/version":
+                await ExecuteQuery("SELECT version()");
+                break;
+            default:
+                Log($"Неизвестная команда: {cmd}. Введите /help", "warn");
+                break;
+        }
+    }
+
+    private void Log(string text, string cls = "")
+    {
+        _lines.Add(new ConsoleLine(text, cls, DateTime.Now.ToString("HH:mm:ss")));
+        if (_lines.Count > 500) _lines.RemoveAt(0);
+    }
+
+    private void ClearConsole() { _lines.Clear(); Log("Консоль очищена.", "info"); }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = Execute();
+        else if (e.Key == "ArrowUp" && _history.Count > 0)
+        {
+            _hIdx = Math.Min(_hIdx + 1, _history.Count - 1);
+            _input = _history[_hIdx];
+        }
+        else if (e.Key == "ArrowDown")
+        {
+            _hIdx = Math.Max(_hIdx - 1, -1);
+            _input = _hIdx >= 0 ? _history[_hIdx] : "";
+        }
+    }
+
+    public void Dispose() { }
+}

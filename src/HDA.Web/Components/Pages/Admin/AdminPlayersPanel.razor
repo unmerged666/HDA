@@ -1,0 +1,155 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🦸 Про-игроки (@_players.Count)</div>
+    <button class="btn-red" style="font-size:10px;padding:8px 16px;" @onclick="NewPlayer">+ Добавить игрока</button>
+</div>
+
+@if (_editing != null)
+{
+    <div style="background:var(--bg2);border:2px solid var(--accent);border-radius:12px;padding:24px;margin-bottom:20px;animation:fadeUp .2s ease;">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;font-family:var(--font-display);">
+            @(_editing.Id == 0 ? "➕ Новый игрок" : $"✏ {_editing.Nickname}")
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudTextField @bind-Value="_editing.Nickname"  Label="Никнейм"    Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.RealName"  Label="Реальное имя" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_editing.Country"   Label="Страна (код)" Variant="Variant.Outlined" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <MudSelect T="PlayerRole" @bind-Value="_editing.Role" Label="Роль" Variant="Variant.Outlined">
+                @foreach (PlayerRole r in Enum.GetValues<PlayerRole>()) { <MudSelectItem Value="r">@RoleLbl(r)</MudSelectItem> }
+            </MudSelect>
+            <MudSelect T="int?" @bind-Value="_editing.TeamId" Label="Команда" Variant="Variant.Outlined">
+                <MudSelectItem T="int?" Value="null">— Без команды —</MudSelectItem>
+                @foreach (var t in _teams) { <MudSelectItem T="int?" Value="(int?)t.Id">@t.Name</MudSelectItem> }
+            </MudSelect>
+            <MudSelect T="ProPlayerStatus" @bind-Value="_editing.Status" Label="Статус" Variant="Variant.Outlined">
+                @foreach (ProPlayerStatus s in Enum.GetValues<ProPlayerStatus>()) { <MudSelectItem Value="s">@s</MudSelectItem> }
+            </MudSelect>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+            <MudNumericField T="int"    @bind-Value="_editing.TotalMatches" Label="Матчей"    Variant="Variant.Outlined" />
+            <MudNumericField T="int"    @bind-Value="_editing.Wins"         Label="Победы"    Variant="Variant.Outlined" />
+            <MudNumericField T="double" @bind-Value="_editing.AvgKills"     Label="Avg K"     Variant="Variant.Outlined" />
+            <MudNumericField T="double" @bind-Value="_editing.AvgDeaths"    Label="Avg D"     Variant="Variant.Outlined" />
+            <MudNumericField T="double" @bind-Value="_editing.AvgAssists"   Label="Avg A"     Variant="Variant.Outlined" />
+        </div>
+        <MudTextField @bind-Value="_editing.Bio" Label="Биография" Variant="Variant.Outlined" Lines="3" Class="mb-3" />
+        <MudTextField @bind-Value="_editing.AvatarUrl" Label="URL аватара" Variant="Variant.Outlined" Class="mb-3" />
+        <div style="display:flex;gap:8px;">
+            <button class="btn-red" style="font-size:10px;padding:8px 20px;" @onclick="SavePlayer" disabled="@_saving">
+                @(_saving?"...":"💾 Сохранить")
+            </button>
+            @if (_editing.Id != 0)
+            { <button class="btn-sm" @onclick="DeletePlayer" style="border-color:var(--accent);color:var(--accent);font-size:10px;padding:8px 14px;">🗑 Удалить</button> }
+            <button class="btn-ghost" style="font-size:10px;padding:8px 16px;" @onclick="@(()=>_editing=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <table class="hda-table">
+        <thead><tr><th>Игрок</th><th>Команда</th><th>Роль</th><th>K/D/A</th><th>WR%</th><th>Статус</th><th></th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<4;i++){<tr><td colspan="7"><MudSkeleton Height="32px"/></td></tr>} }
+            else
+            {
+                @foreach (var p in _players)
+                {
+                    <tr>
+                        <td>
+                            <div style="font-weight:600;font-size:13px;font-family:var(--font-display);">@p.Nickname</div>
+                            <div style="font-size:10px;color:var(--t4);">@p.RealName · @p.Country</div>
+                        </td>
+                        <td style="font-size:12px;color:var(--t3);">@(p.Team?.Name ?? "—")</td>
+                        <td><span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(232,64,87,.1);color:var(--accent);font-family:var(--font-display);">@RoleLbl(p.Role)</span></td>
+                        <td style="font-family:var(--font-mono);font-size:11px;color:var(--t2);">@p.AvgKills.ToString("0.0")/@p.AvgDeaths.ToString("0.0")/@p.AvgAssists.ToString("0.0")</td>
+                        <td style="font-family:var(--font-mono);font-weight:700;color:var(--green);">
+                            @(p.TotalMatches>0?$"{(int)(p.Wins*100.0/p.TotalMatches)}%":"—")
+                        </td>
+                        <td><span style="@StatusStyle(p.Status)">@StatusLbl(p.Status)</span></td>
+                        <td><button class="btn-sm" @onclick="@(()=>EditPlayer(p))" style="font-size:9px;padding:4px 10px;">✏</button></td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    [Inject] AppState AppState { get; set; } = null!;
+    private List<ProPlayer> _players = [];
+    private List<Team> _teams = [];
+    private ProPlayer? _editing;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams   = await Db.Teams.OrderBy(t=>t.Name).ToListAsync();
+        _players = await Db.ProPlayers.Include(p=>p.Team).OrderBy(p=>p.Nickname).ToListAsync();
+        _loading = false;
+    }
+
+    private void NewPlayer() => _editing = new ProPlayer
+    {
+        Status=ProPlayerStatus.PendingApproval, Role=PlayerRole.Carry,
+        UserId=AppState.CurrentUser!.Id, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow
+    };
+
+    private void EditPlayer(ProPlayer p) => _editing = new ProPlayer
+    {
+        Id=p.Id, UserId=p.UserId, Nickname=p.Nickname, RealName=p.RealName, Country=p.Country,
+        Role=p.Role, TeamId=p.TeamId, Status=p.Status, TotalMatches=p.TotalMatches, Wins=p.Wins,
+        AvgKills=p.AvgKills, AvgDeaths=p.AvgDeaths, AvgAssists=p.AvgAssists, AvgGpm=p.AvgGpm,
+        AvgXpm=p.AvgXpm, Bio=p.Bio, AvatarUrl=p.AvatarUrl, CreatedAt=p.CreatedAt, UpdatedAt=DateTime.UtcNow
+    };
+
+    private async Task SavePlayer()
+    {
+        if (_editing==null) return; _saving=true;
+        _editing.UpdatedAt=DateTime.UtcNow;
+        if (_editing.Id==0) { Db.ProPlayers.Add(_editing); }
+        else
+        {
+            var e = await Db.ProPlayers.FindAsync(_editing.Id);
+            if (e!=null)
+            {
+                e.Nickname=_editing.Nickname; e.RealName=_editing.RealName; e.Country=_editing.Country;
+                e.Role=_editing.Role; e.TeamId=_editing.TeamId; e.Status=_editing.Status;
+                e.TotalMatches=_editing.TotalMatches; e.Wins=_editing.Wins; e.AvgKills=_editing.AvgKills;
+                e.AvgDeaths=_editing.AvgDeaths; e.AvgAssists=_editing.AvgAssists; e.Bio=_editing.Bio;
+                e.AvatarUrl=_editing.AvatarUrl; e.UpdatedAt=DateTime.UtcNow;
+            }
+        }
+        await Db.SaveChangesAsync();
+        _players = await Db.ProPlayers.Include(p=>p.Team).OrderBy(p=>p.Nickname).ToListAsync();
+        _editing=null; _saving=false;
+        Snackbar.Add("Игрок сохранён!", Severity.Success);
+    }
+
+    private async Task DeletePlayer()
+    {
+        if (_editing?.Id==0) return;
+        var e = await Db.ProPlayers.FindAsync(_editing!.Id);
+        if (e!=null) { Db.ProPlayers.Remove(e); await Db.SaveChangesAsync(); }
+        _players = await Db.ProPlayers.Include(p=>p.Team).OrderBy(p=>p.Nickname).ToListAsync();
+        _editing=null;
+        Snackbar.Add("Игрок удалён", Severity.Warning);
+    }
+
+    private string RoleLbl(PlayerRole r) => r switch { PlayerRole.Carry=>"Керри",PlayerRole.Midlaner=>"Мид",PlayerRole.Offlaner=>"Офф",PlayerRole.SoftSupport=>"4 поз.",PlayerRole.HardSupport=>"Саппорт",_=>"—" };
+    private string StatusLbl(ProPlayerStatus s) => s switch { ProPlayerStatus.Approved=>"✓ Одобрен",ProPlayerStatus.Rejected=>"✗ Отклонён",_=>"⏳ Ожидание" };
+    private string StatusStyle(ProPlayerStatus s) => s switch
+    {
+        ProPlayerStatus.Approved => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);",
+        ProPlayerStatus.Rejected => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(232,64,87,.12);color:var(--accent);",
+        _ => "font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,184,0,.12);color:var(--gold);"
+    };
+}

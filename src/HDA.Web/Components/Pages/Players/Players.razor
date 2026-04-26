@@ -1,0 +1,134 @@
+@page "/players"
+@inject IProPlayerService PlayerService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Профессиональные игроки — HDA.gg</PageTitle>
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:20px 28px 16px;border-bottom:1px solid var(--border);">
+    <div>
+        <div class="page-title">Профессиональные игроки</div>
+        <div class="page-sub">@_filtered.Count() игроков в базе</div>
+    </div>
+    <div style="display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:0 10px;width:200px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input @bind="_search" @bind:event="oninput" placeholder="Поиск игрока..."
+               style="background:transparent;border:none;outline:none;padding:6px 8px;font-size:12px;color:var(--t1);font-family:var(--font-body);width:100%;" />
+    </div>
+</div>
+
+<!-- Role filter -->
+<div style="padding:10px 28px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+    @foreach (var (role, label) in new (PlayerRole?, string)[]
+    {
+        (null,"ВСЕ"),(PlayerRole.Carry,"КЕРРИ"),(PlayerRole.Midlaner,"МИД"),
+        (PlayerRole.Offlaner,"ОФФ"),(PlayerRole.SoftSupport,"4 ПОЗ."),(PlayerRole.HardSupport,"САППОРТ")
+    })
+    {
+        var active = _roleF == role;
+        <button @onclick="@(()=>_roleF=role)"
+                style="@($"padding:5px 14px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:1.5px;font-family:var(--font-display);text-transform:uppercase;cursor:pointer;transition:all .2s;border:1px solid {(active?"var(--accent)":"var(--border2)")};background:{(active?"var(--accent-a)":"transparent")};color:{(active?"var(--accent)":"var(--t3)")};")">
+            @label
+        </button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;padding:20px;">
+        @for (int i = 0; i < 8; i++) { <MudSkeleton Height="280px" Style="border-radius:12px;" /> }
+    </div>
+}
+else if (!_filtered.Any())
+{
+    <div style="padding:60px;text-align:center;">
+        <div style="font-size:40px;opacity:.2;margin-bottom:16px;">🎮</div>
+        <div style="font-size:15px;font-weight:700;color:var(--t2);">Игроки не найдены</div>
+        @if (_players.Any())
+        { <div style="font-size:12px;color:var(--t4);margin-top:8px;">Попробуйте изменить фильтр</div> }
+        else
+        { <div style="font-size:12px;color:var(--t4);margin-top:8px;">Про-игроки появятся после подачи заявки</div> }
+    </div>
+}
+else
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;padding:20px;" class="stagger">
+        @foreach (var p in _filtered)
+        {
+            <div class="player-card hda-fadein" @onclick="@(()=>Nav.NavigateTo($"/players/{p.Id}"))">
+                <!-- Avatar / initials -->
+                <div style="height:160px;background:linear-gradient(135deg,var(--bg3),var(--bg4));display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
+                    @if (!string.IsNullOrEmpty(p.AvatarUrl))
+                    { <img src="@p.AvatarUrl" class="player-card-img" style="height:160px;" /> }
+                    else
+                    {
+                        <div style="font-size:56px;font-weight:900;color:var(--accent);opacity:.25;font-family:var(--font-display);">@p.Nickname[0]</div>
+                        <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;background:linear-gradient(to top,rgba(6,10,18,.9),transparent);">
+                            <div style="font-size:11px;font-weight:700;color:var(--t1);font-family:var(--font-display);">@p.Team?.Tag</div>
+                        </div>
+                    }
+                    <div style="position:absolute;top:8px;left:8px;">
+                        @if (p.Country != null)
+                        { <span style="font-size:10px;background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--t1);font-family:var(--font-mono);font-weight:700;">@p.Country</span> }
+                    </div>
+                </div>
+                <div class="player-card-body">
+                    <div class="player-nick">@p.Nickname</div>
+                    @if (!string.IsNullOrEmpty(p.RealName))
+                    { <div class="player-real">@p.RealName</div> }
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                        <span class="role-tag">@RoleLbl(p.Role)</span>
+                        @if (p.Team != null)
+                        { <span style="font-size:9px;color:var(--t3);font-family:var(--font-display);letter-spacing:.5px;">@p.Team.Name</span> }
+                    </div>
+                    @if (p.TotalMatches > 0)
+                    {
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px;">
+                            <div style="text-align:center;background:var(--bg3);border-radius:6px;padding:6px;">
+                                <div style="font-size:13px;font-weight:700;color:var(--t1);font-family:var(--font-mono);">@p.AvgKills.ToString("0.0")</div>
+                                <div style="font-size:8px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-family:var(--font-display);">KDA</div>
+                            </div>
+                            <div style="text-align:center;background:var(--bg3);border-radius:6px;padding:6px;">
+                                <div style="font-size:13px;font-weight:700;color:var(--green);font-family:var(--font-mono);">@(p.TotalMatches>0?(int)(p.Wins*100.0/p.TotalMatches):0)%</div>
+                                <div style="font-size:8px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-family:var(--font-display);">ВИН%</div>
+                            </div>
+                            <div style="text-align:center;background:var(--bg3);border-radius:6px;padding:6px;">
+                                <div style="font-size:13px;font-weight:700;color:var(--t1);font-family:var(--font-mono);">@p.TotalMatches</div>
+                                <div style="font-size:8px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;font-family:var(--font-display);">ИГР</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private List<ProPlayer> _players = [];
+    private PlayerRole? _roleF;
+    private string _search = "";
+    private bool _loading = true;
+
+    private IEnumerable<ProPlayer> _filtered => _players
+        .Where(p => p.Status == ProPlayerStatus.Approved &&
+               (_roleF == null || p.Role == _roleF) &&
+               (string.IsNullOrEmpty(_search) || p.Nickname.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               (p.RealName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _players = await PlayerService.GetAllAsync();
+        _loading = false;
+    }
+
+    private string RoleLbl(PlayerRole r) => r switch
+    {
+        PlayerRole.Carry=>"Керри", PlayerRole.Midlaner=>"Мид",
+        PlayerRole.Offlaner=>"Офф", PlayerRole.SoftSupport=>"4 поз.",
+        PlayerRole.HardSupport=>"Саппорт", _=>"—"
+    };
+}

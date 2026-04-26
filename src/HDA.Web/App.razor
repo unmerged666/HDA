@@ -1,0 +1,50 @@
+@using MudBlazor
+@using HDA.Infrastructure.Services
+@implements IDisposable
+
+<MudThemeProvider @ref="_mud" Theme="_theme" IsDarkMode="@ThemeService.IsDark" />
+<MudSnackbarProvider />
+<MudDialogProvider />
+<MudPopoverProvider />
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>404 — HDA.gg</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;text-align:center;">
+                <div style="font-size:96px;font-weight:900;color:#E84057;line-height:1;">404</div>
+                <div style="font-size:20px;font-weight:700;color:var(--t1);">Страница не найдена</div>
+                <a href="/" class="btn-red">На главную</a>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    [Inject] ThemeService ThemeService { get; set; } = null!;
+    private MudThemeProvider _mud = null!;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary="#E84057", Background="#F0F4F8", Surface="#FFFFFF",
+            AppbarBackground="rgba(248,250,252,0.97)", DrawerBackground="#FFFFFF",
+            TextPrimary="#0F172A", TextSecondary="#475569", ActionDefault="#64748B",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary="#E84057", Background="#07090F", Surface="#0C1018",
+            AppbarBackground="rgba(7,9,15,0.97)", DrawerBackground="#0C1018",
+            TextPrimary="#F1F5F9", TextSecondary="#94A3B8", ActionDefault="#94A3B8",
+        }
+    };
+
+    protected override void OnInitialized() => ThemeService.OnChangeAsync += OnTheme;
+    private async Task OnTheme() => await InvokeAsync(StateHasChanged);
+    public void Dispose() => ThemeService.OnChangeAsync -= OnTheme;
+}

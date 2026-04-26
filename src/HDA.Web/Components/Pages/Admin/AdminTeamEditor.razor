@@ -1,0 +1,189 @@
+@page "/admin/teams/{Id:int?}"
+@inject ITeamService TeamService
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAuthService AuthService
+@inject IFileUploadService FileUpload
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+
+<PageTitle>@(_isNew ? "Add Team" : "Edit Team") — HDA Admin</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h5" Style="color:#EAEAEA;">@(_isNew ? "Add New Team" : $"Edit Team: {_form.Name}")</MudText>
+</MudStack>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> }
+else
+{
+    <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:32px;">
+        <MudGrid Spacing="3">
+            <!-- Logo Upload -->
+            <MudItem xs="12" sm="3">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudAvatar Style="width:100px;height:100px;background:#0D0D1A; border:2px solid #1E1E3A;">
+                        @if (!string.IsNullOrEmpty(_logoPreview))
+                        {
+                            <MudImage Src="@_logoPreview" Width="80" Height="80" Style="object-fit:contain;" />
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.Groups" Style="font-size:3rem;" />
+                        }
+                    </MudAvatar>
+                    <InputFile id="logoInput" OnChange="OnLogoSelected" accept="image/*" style="display:none;" />
+                    <MudButton HtmlTag="label" for="logoInput" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">
+                        Upload Logo
+                    </MudButton>
+                    <MudText Typo="Typo.caption" Style="color:#8A8AAA; text-align:center;">PNG recommended · Transparent BG</MudText>
+                </MudStack>
+            </MudItem>
+
+            <!-- Team Fields -->
+            <MudItem xs="12" sm="9">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="8">
+                        <MudTextField @bind-Value="_form.Name" Label="Team Name *" Variant="Variant.Outlined" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_form.Tag" Label="Tag *" Variant="Variant.Outlined"
+                                      Required="true" MaxLength="6" HelperText="Short tag, e.g. OG, NAVI" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_form.Region" Label="Region" Variant="Variant.Outlined"
+                                      HelperText="Europe, CIS, SEA, NA, SA, China" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_form.Country" Label="Country" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_form.Organization" Label="Organization" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker @bind-Date="_form.Founded" Label="Founded" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_form.RatingPoints" Label="Rating Points" Variant="Variant.Outlined" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="_form.WorldRank" Label="World Rank" Variant="Variant.Outlined" Min="1" />
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Href="/admin">Cancel</MudButton>
+            @if (!_isNew)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteTeam">Delete</MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="_saving">
+                @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" /> }
+                else { <span>@(_isNew ? "Create Team" : "Save Changes")</span> }
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private bool _isNew => Id == null || Id == 0;
+    private TeamForm _form = new();
+    private string? _logoPreview;
+    private IBrowserFile? _logoFile;
+    private bool _loading = true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!_isNew)
+        {
+            var team = await TeamService.GetDetailAsync(Id!.Value);
+            if (team != null)
+            {
+                _form = new TeamForm
+                {
+                    Name = team.Name, Tag = team.Tag, Region = team.Region,
+                    Country = team.Country, Organization = team.Organization,
+                    Founded = team.Founded, RatingPoints = team.RatingPoints, WorldRank = team.WorldRank,
+                };
+                _logoPreview = team.LogoUrl;
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        _logoFile = e.File;
+        var buf = new byte[e.File.Size];
+        await e.File.OpenReadStream(5 * 1024 * 1024).ReadAsync(buf);
+        _logoPreview = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(buf)}";
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        string? logoUrl = null;
+        if (_logoFile != null) logoUrl = await FileUpload.UploadImageAsync(_logoFile, "teams");
+
+        if (_isNew)
+        {
+            var team = new Team
+            {
+                Name = _form.Name ?? "", Tag = _form.Tag ?? "", Region = _form.Region,
+                Country = _form.Country, Organization = _form.Organization,
+                Founded = _form.Founded ?? DateTime.UtcNow, RatingPoints = _form.RatingPoints,
+                WorldRank = _form.WorldRank, LogoUrl = logoUrl,
+            };
+            await TeamService.CreateAsync(team);
+            await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "CreateTeam", "Team", team.Id, _form.Name);
+        }
+        else
+        {
+            var team = await TeamService.GetDetailAsync(Id!.Value);
+            if (team != null)
+            {
+                team.Name = _form.Name ?? team.Name;
+                team.Tag = _form.Tag ?? team.Tag;
+                team.Region = _form.Region;
+                team.Country = _form.Country;
+                team.Organization = _form.Organization;
+                team.Founded = _form.Founded ?? team.Founded;
+                team.RatingPoints = _form.RatingPoints;
+                team.WorldRank = _form.WorldRank;
+                if (logoUrl != null) team.LogoUrl = logoUrl;
+                await TeamService.UpdateAsync(team);
+                await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "UpdateTeam", "Team", team.Id, team.Name);
+            }
+        }
+        _saving = false;
+        Snackbar.Add("Team saved!", Severity.Success);
+        Nav.NavigateTo("/admin");
+    }
+
+    private async Task DeleteTeam()
+    {
+        await TeamService.DeleteAsync(Id!.Value);
+        await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "DeleteTeam", "Team", Id);
+        Snackbar.Add("Team deleted.", Severity.Warning);
+        Nav.NavigateTo("/admin");
+    }
+
+    private class TeamForm
+    {
+        public string? Name { get; set; }
+        public string? Tag { get; set; }
+        public string? Region { get; set; }
+        public string? Country { get; set; }
+        public string? Organization { get; set; }
+        public DateTime? Founded { get; set; }
+        public int RatingPoints { get; set; }
+        public int WorldRank { get; set; } = 999;
+    }
+}

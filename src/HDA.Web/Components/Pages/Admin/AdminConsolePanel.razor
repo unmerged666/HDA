@@ -1,0 +1,130 @@
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="margin-bottom:16px;">
+    <div style="font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);margin-bottom:4px;">⚡ SQL Консоль</div>
+    <div style="font-size:11px;color:var(--t4);">Прямые SQL-запросы к базе данных. Используйте осторожно.</div>
+</div>
+
+<!-- Quick commands -->
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+    @foreach (var (lbl, sql) in _quickCmds)
+    {
+        var s = sql;
+        <button @onclick="@(()=>{ _sql=s; })"
+                style="padding:5px 12px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:1px;font-family:var(--font-display);text-transform:uppercase;border:1px solid var(--border2);background:var(--bg3);color:var(--t3);cursor:pointer;transition:all .2s;">
+            @lbl
+        </button>
+    }
+</div>
+
+<!-- SQL input -->
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px;">
+    <div style="background:var(--bg3);padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:#E84057;"></span>
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--gold);"></span>
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--green);"></span>
+        <span style="font-size:10px;color:var(--t4);margin-left:8px;font-family:var(--font-mono);">PostgreSQL — hda_db</span>
+    </div>
+    <div style="padding:16px;">
+        <textarea @bind="_sql"
+                  style="width:100%;min-height:120px;background:transparent;border:none;outline:none;font-family:var(--font-mono);font-size:13px;color:var(--t1);resize:vertical;line-height:1.6;"
+                  placeholder="SELECT * FROM &quot;Teams&quot; ORDER BY &quot;WorldRank&quot;;"></textarea>
+    </div>
+    <div style="background:var(--bg3);padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+        <button class="btn-red" style="font-size:10px;padding:8px 20px;" @onclick="RunQuery" disabled="@_running">
+            @(_running ? "⏳ Выполнение..." : "▶ Выполнить")
+        </button>
+        <button class="btn-ghost" style="font-size:10px;padding:8px 14px;" @onclick="@(()=>{ _sql=""; _result=null; _error=null; })">Очистить</button>
+        <span style="font-size:10px;color:var(--t4);margin-left:auto;">@(_result!=null?$"{_result.Count} строк за {_elapsed}ms":"")</span>
+    </div>
+</div>
+
+<!-- Results -->
+@if (_error != null)
+{
+    <div style="background:rgba(232,64,87,.08);border:1px solid rgba(232,64,87,.2);border-radius:8px;padding:14px 16px;font-family:var(--font-mono);font-size:12px;color:var(--accent);">
+        ❌ @_error
+    </div>
+}
+@if (_result != null && _result.Any())
+{
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:400px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:var(--font-mono);">
+            <thead>
+                <tr style="background:var(--bg3);position:sticky;top:0;">
+                    @foreach (var col in _result[0].Keys)
+                    { <th style="padding:8px 12px;text-align:left;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--border);white-space:nowrap;">@col</th> }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _result)
+                {
+                    <tr style="border-bottom:1px solid var(--border);">
+                        @foreach (var val in row.Values)
+                        { <td style="padding:7px 12px;color:var(--t1);white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis;">@(val?.ToString() ?? "NULL")</td> }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div style="font-size:10px;color:var(--t4);margin-top:8px;font-family:var(--font-mono);">@_result.Count строк · @_elapsed ms</div>
+}
+else if (_result != null && !_result.Any())
+{
+    <div style="background:rgba(22,199,132,.08);border:1px solid rgba(22,199,132,.2);border-radius:8px;padding:14px 16px;font-family:var(--font-mono);font-size:12px;color:var(--green);">
+        ✓ Запрос выполнен успешно · @_elapsed ms
+    </div>
+}
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private string _sql = "";
+    private List<Dictionary<string, object?>>? _result;
+    private string? _error;
+    private bool _running;
+    private long _elapsed;
+
+    private readonly (string lbl, string sql)[] _quickCmds =
+    [
+        ("Teams",       "SELECT \"Id\", \"Name\", \"Tag\", \"RatingPoints\", \"WorldRank\" FROM \"Teams\" ORDER BY \"WorldRank\";"),
+        ("Users",       "SELECT \"Id\", \"Username\", \"Email\", \"Role\", \"IsActive\", \"CreatedAt\" FROM \"Users\" ORDER BY \"CreatedAt\" DESC;"),
+        ("Matches",     "SELECT \"Id\", \"TeamAId\", \"TeamBId\", \"Status\", \"Format\", \"TeamAScore\", \"TeamBScore\", \"ScheduledAt\" FROM \"Matches\" ORDER BY \"ScheduledAt\" DESC LIMIT 20;"),
+        ("Tournaments", "SELECT \"Id\", \"Name\", \"Organizer\", \"Status\", \"Tier\", \"PrizePool\" FROM \"Tournaments\" ORDER BY \"StartDate\" DESC;"),
+        ("News",        "SELECT \"Id\", \"Title\", \"Category\", \"IsPublished\", \"PublishedAt\" FROM \"NewsArticles\" ORDER BY \"CreatedAt\" DESC;"),
+        ("Heroes",      "SELECT \"Id\", \"LocalizedName\", \"PrimaryAttribute\", \"AttackType\" FROM \"Heroes\" ORDER BY \"LocalizedName\" LIMIT 30;"),
+        ("Logs",        "SELECT l.\"Id\", u.\"Username\", l.\"Action\", l.\"Details\", l.\"CreatedAt\" FROM \"ActivityLogs\" l LEFT JOIN \"Users\" u ON l.\"UserId\"=u.\"Id\" ORDER BY l.\"CreatedAt\" DESC LIMIT 50;"),
+        ("DB Size",     "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size FROM pg_tables WHERE schemaname='public' ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"),
+    ];
+
+    private async Task RunQuery()
+    {
+        if (string.IsNullOrWhiteSpace(_sql)) return;
+        _running = true; _error = null; _result = null;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var conn = Db.Database.GetDbConnection();
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = _sql;
+            cmd.CommandTimeout = 30;
+            using var reader = await cmd.ExecuteReaderAsync();
+            var rows = new List<Dictionary<string, object?>>();
+            while (await reader.ReadAsync())
+            {
+                var row = new Dictionary<string, object?>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                    row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                rows.Add(row);
+            }
+            _result = rows;
+            if (conn.State == System.Data.ConnectionState.Open) await conn.CloseAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        sw.Stop(); _elapsed = sw.ElapsedMilliseconds;
+        _running = false;
+    }
+}

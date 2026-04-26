@@ -1,0 +1,194 @@
+@page "/pro-profile"
+@inject IProPlayerService PlayerService
+@inject ITeamService TeamService
+@inject IFileUploadService FileUpload
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+
+<PageTitle>Про-профиль — HDA.gg</PageTitle>
+@if (!AppState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+<div style="padding:20px 24px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;">
+    <div style="font-size:22px;font-weight:900;color:var(--t1);">Мой про-профиль</div>
+    @if (_profile?.Status == ProPlayerStatus.PendingApproval)
+    { <span style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:4px;background:rgba(245,158,11,0.12);color:var(--amber);">На рассмотрении</span> }
+    @if (_profile?.Status == ProPlayerStatus.Approved)
+    { <span style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:4px;background:var(--green-a);color:var(--green);">Подтверждён</span> }
+    @if (_profile?.Status == ProPlayerStatus.Rejected)
+    { <span style="font-size:10px;font-weight:800;padding:3px 10px;border-radius:4px;background:var(--red-a);color:var(--red);">Отклонён</span> }
+</div>
+
+<div style="display:grid;grid-template-columns:220px 1fr;gap:0;max-width:900px;">
+    <!-- Avatar column -->
+    <div style="border-right:1px solid var(--border);padding:24px;text-align:center;">
+        <div style="position:relative;display:inline-block;margin-bottom:14px;">
+            <div style="width:100px;height:100px;border-radius:14px;background:var(--bg3);border:2px solid var(--border2);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;color:var(--t4);">
+                @if (!string.IsNullOrEmpty(_preview))
+                { <img src="@_preview" style="width:100%;height:100%;object-fit:cover;" /> }
+                else if (!string.IsNullOrEmpty(_profile?.AvatarUrl))
+                { <img src="@_profile.AvatarUrl" style="width:100%;height:100%;object-fit:cover;" /> }
+                else { @(AppState.CurrentUser!.Username[0]) }
+            </div>
+            <InputFile id="ppAva" OnChange="OnFile" accept="image/jpeg,image/png,image/webp" style="display:none;" />
+            <label for="ppAva" style="position:absolute;bottom:-5px;right:-5px;width:28px;height:28px;border-radius:50%;background:var(--red);border:2px solid var(--bg2);display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Загрузить фото">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </label>
+        </div>
+        @if (_file != null)
+        {
+            <button class="btn-red" style="width:100%;justify-content:center;padding:8px;margin-bottom:6px;font-size:11px;" @onclick="SaveAvatar" disabled="@_savingAva">
+                @(_savingAva ? "Загрузка..." : "Сохранить фото")
+            </button>
+            <button class="btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px;" @onclick="@(()=>{ _file=null; _preview=null; })">Отмена</button>
+        }
+        <div style="font-size:10px;color:var(--t4);margin-top:8px;">JPG, PNG, WebP · макс. 5МБ</div>
+    </div>
+
+    <!-- Form -->
+    <div style="padding:24px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+            <MudTextField @bind-Value="_f.Nickname" Label="Никнейм *" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_f.RealName" Label="Имя и фамилия" Variant="Variant.Outlined" />
+            <MudTextField @bind-Value="_f.Country" Label="Страна" Variant="Variant.Outlined" />
+            <MudSelect @bind-Value="_f.Role" Label="Роль *" Variant="Variant.Outlined">
+                <MudSelectItem Value="PlayerRole.Carry">Керри (1 позиция)</MudSelectItem>
+                <MudSelectItem Value="PlayerRole.Midlaner">Мидлейнер (2 позиция)</MudSelectItem>
+                <MudSelectItem Value="PlayerRole.Offlaner">Офлейнер (3 позиция)</MudSelectItem>
+                <MudSelectItem Value="PlayerRole.SoftSupport">Мягкий саппорт (4 позиция)</MudSelectItem>
+                <MudSelectItem Value="PlayerRole.HardSupport">Хард саппорт (5 позиция)</MudSelectItem>
+            </MudSelect>
+            <MudSelect @bind-Value="_f.TeamId" Label="Команда" Variant="Variant.Outlined">
+                <MudSelectItem T="int?" Value="@((int?)null)">Free Agent (без команды)</MudSelectItem>
+                @foreach (var t in _teams)
+                { <MudSelectItem T="int?" Value="t.Id">@t.Name (@t.Tag)</MudSelectItem> }
+            </MudSelect>
+            <MudTextField @bind-Value="_f.SteamId" Label="Steam64 ID" Variant="Variant.Outlined"
+                          HelperText="Для синхронизации статистики" />
+        </div>
+        <MudTextField @bind-Value="_f.Bio" Label="О себе" Variant="Variant.Outlined" Lines="4" Class="mb-4"
+                      MaxLength="500" HelperText="@($"{_f.Bio?.Length ?? 0}/500 символов")" />
+
+        <div style="display:flex;gap:10px;">
+            <button class="btn-red" @onclick="Save" disabled="@_saving">
+                @(_saving ? "Сохранение..." : (_profile == null ? "Подать заявку" : "Сохранить"))
+            </button>
+            @if (_profile?.Status == ProPlayerStatus.Approved)
+            {
+                <a href="/players/@_profile.Id" class="btn-ghost" style="text-decoration:none;">Мой публичный профиль →</a>
+            }
+        </div>
+
+        @if (_profile?.Status == ProPlayerStatus.Approved && _profile.TotalMatches > 0)
+        {
+            <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);margin-bottom:14px;text-transform:uppercase;letter-spacing:1px;">Статистика (обновляется администратором)</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;">
+                    @foreach (var (l, v, c) in new[]
+                    {
+                        ("Матчей", _profile.TotalMatches.ToString(), "var(--t1)"),
+                        ("Побед", _profile.TotalMatches>0?$"{(double)_profile.Wins/_profile.TotalMatches*100:F1}%":"—", "var(--green)"),
+                        ("Avg убийства", _profile.AvgKills.ToString("F1"), "var(--green)"),
+                        ("Avg GPM", ((int)_profile.AvgGpm).ToString(), "#FFD700"),
+                    })
+                    {
+                        <div class="stat-box">
+                            <div class="stat-val" style="color:@c;font-size:18px;">@v</div>
+                            <div class="stat-lbl">@l</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private ProPlayer? _profile;
+    private List<Team> _teams = [];
+    private IBrowserFile? _file;
+    private string? _preview;
+    private bool _saving, _savingAva;
+    private ProForm _f = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AppState.IsAuthenticated) return;
+        _teams = await TeamService.GetRankingsAsync();
+        _profile = await PlayerService.GetByUserIdAsync(AppState.CurrentUser!.Id);
+        if (_profile != null)
+        {
+            _f = new ProForm
+            {
+                Nickname = _profile.Nickname, RealName = _profile.RealName,
+                Country = _profile.Country, Role = _profile.Role,
+                TeamId = _profile.TeamId, SteamId = _profile.SteamId, Bio = _profile.Bio
+            };
+            _preview = _profile.AvatarUrl;
+        }
+    }
+
+    private async Task OnFile(InputFileChangeEventArgs e)
+    {
+        var f = e.File;
+        if (f.Size > 5 * 1024 * 1024) { Snackbar.Add("Файл слишком большой (макс. 5МБ)", Severity.Warning); return; }
+        _file = f;
+        var maxRead = (int)Math.Min(f.Size, 2 * 1024 * 1024);
+        var buf = new byte[maxRead];
+        await f.OpenReadStream(5 * 1024 * 1024).ReadAsync(buf, 0, maxRead);
+        _preview = $"data:{f.ContentType};base64,{Convert.ToBase64String(buf)}";
+    }
+
+    private async Task SaveAvatar()
+    {
+        if (_file == null || _profile == null) return;
+        _savingAva = true;
+        try
+        {
+            var url = await FileUpload.UploadAvatarAsync(_file, "players");
+            if (url != null)
+            {
+                await PlayerService.UpdateAvatarAsync(_profile.Id, url);
+                _preview = url;
+                _file = null;
+                Snackbar.Add("Фото обновлено!", Severity.Success);
+            }
+            else Snackbar.Add("Ошибка загрузки", Severity.Error);
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        _savingAva = false;
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_f.Nickname)) { Snackbar.Add("Никнейм обязателен", Severity.Warning); return; }
+        _saving = true;
+        var p = _profile ?? new ProPlayer { UserId = AppState.CurrentUser!.Id };
+        p.Nickname = _f.Nickname;
+        p.RealName = _f.RealName;
+        p.Country = _f.Country;
+        p.Role = _f.Role;
+        p.TeamId = _f.TeamId;
+        p.SteamId = _f.SteamId;
+        p.Bio = _f.Bio;
+        _profile = await PlayerService.CreateOrUpdateProfileAsync(p);
+        _saving = false;
+        Snackbar.Add("Профиль сохранён!", Severity.Success);
+    }
+
+    private class ProForm
+    {
+        public string? Nickname { get; set; }
+        public string? RealName { get; set; }
+        public string? Country { get; set; }
+        public PlayerRole Role { get; set; } = PlayerRole.Carry;
+        public int? TeamId { get; set; }
+        public string? SteamId { get; set; }
+        public string? Bio { get; set; }
+    }
+}

@@ -1,0 +1,127 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🦸 Про-игроки (@_players.Count)</div>
+    <button class="adm-btn adm-btn-primary" @onclick="NewPlayer">+ Добавить игрока</button>
+</div>
+
+@if (_e != null)
+{
+    <div class="adm-card" style="padding:22px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
+            @(_e.Id==0?"Новый игрок":"Редактировать: "+_e.Nickname)
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Никнейм</label><input class="adm-field" @bind="_e.Nickname" /></div>
+            <div><label class="adm-label">Реальное имя</label><input class="adm-field" @bind="_e.RealName" /></div>
+            <div><label class="adm-label">Страна (код)</label><input class="adm-field" @bind="_e.Country" placeholder="RU, UA, DE..." /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div>
+                <label class="adm-label">Роль</label>
+                <select class="adm-field" @bind="_e.Role">
+                    @foreach (PlayerRole r in Enum.GetValues<PlayerRole>()) { <option value="@r">@RoleLbl(r)</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Команда</label>
+                <select class="adm-field" @bind="_e.TeamId">
+                    <option value="">— Без команды —</option>
+                    @foreach (var t in _teams) { <option value="@t.Id">@t.Name</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Статус</label>
+                <select class="adm-field" @bind="_e.Status">
+                    @foreach (ProPlayerStatus s in Enum.GetValues<ProPlayerStatus>()) { <option value="@s">@StatusLbl(s)</option> }
+                </select>
+            </div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr;">
+            <div><label class="adm-label">URL аватара</label><input class="adm-field" @bind="_e.AvatarUrl" /></div>
+            <div><label class="adm-label">Steam ID</label><input class="adm-field" @bind="_e.SteamId" /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
+            <div><label class="adm-label">Всего матчей</label><input class="adm-field" type="number" @bind="_e.TotalMatches" /></div>
+            <div><label class="adm-label">Победы</label><input class="adm-field" type="number" @bind="_e.Wins" /></div>
+            <div><label class="adm-label">Avg убийств</label><input class="adm-field" type="number" step="0.1" @bind="_e.AvgKills" /></div>
+            <div><label class="adm-label">Avg смертей</label><input class="adm-field" type="number" step="0.1" @bind="_e.AvgDeaths" /></div>
+            <div><label class="adm-label">Avg GPM</label><input class="adm-field" type="number" @bind="_e.AvgGpm" /></div>
+        </div>
+        <div style="margin-bottom:14px;"><label class="adm-label">Биография</label><textarea class="adm-field" @bind="_e.Bio" rows="3"></textarea></div>
+        <div style="display:flex;gap:8px;">
+            <button class="adm-btn adm-btn-primary" @onclick="Save" disabled="@_saving">@(_saving?"Сохранение...":"💾 Сохранить")</button>
+            <button class="adm-btn adm-btn-ghost" @onclick="@(()=>_e=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div class="adm-card">
+    <table class="hda-table">
+        <thead><tr><th>Игрок</th><th>Роль</th><th>Команда</th><th>W/L</th><th>Статус</th><th>Действия</th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<4;i++){<tr><td colspan="6"><MudSkeleton Height="30px"/></td></tr>} }
+            else @foreach (var p in _players)
+            {
+                <tr>
+                    <td>
+                        <div style="font-weight:600;">@p.Nickname</div>
+                        <div style="font-size:10px;color:var(--t4);">@p.RealName · @p.Country</div>
+                    </td>
+                    <td style="font-size:12px;color:var(--t2);">@RoleLbl(p.Role)</td>
+                    <td style="font-size:12px;color:var(--t3);">@(_teams.FirstOrDefault(t=>t.Id==p.TeamId)?.Name ?? "—")</td>
+                    <td style="font-family:var(--font-mono);font-size:12px;">
+                        <span style="color:var(--green)">@p.Wins</span>/<span style="color:var(--t4)">@(p.TotalMatches-p.Wins)</span>
+                    </td>
+                    <td><span style="@StatusStyle(p.Status)">@StatusLbl(p.Status)</span></td>
+                    <td>
+                        <div style="display:flex;gap:5px;">
+                            <button class="adm-btn adm-btn-ghost" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Edit(p))">✏</button>
+                            <button class="adm-btn adm-btn-success" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Approve(p))">✓</button>
+                            <button class="adm-btn adm-btn-danger" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Delete(p))">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<ProPlayer> _players=[]; private List<Team> _teams=[];
+    private ProPlayer? _e; private bool _loading=true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _players = await Db.ProPlayers.Include(p=>p.Team).OrderBy(p=>p.Nickname).ToListAsync();
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _loading=false;
+    }
+
+    void NewPlayer() { var u=Db.Users.FirstOrDefault(); _e = new ProPlayer { UserId=u?.Id??0, Status=ProPlayerStatus.Approved, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow }; }
+
+    void Edit(ProPlayer p) => _e = new ProPlayer { Id=p.Id,UserId=p.UserId,Nickname=p.Nickname,RealName=p.RealName,Country=p.Country,Role=p.Role,AvatarUrl=p.AvatarUrl,Bio=p.Bio,SteamId=p.SteamId,TeamId=p.TeamId,Status=p.Status,TotalMatches=p.TotalMatches,Wins=p.Wins,AvgKills=p.AvgKills,AvgDeaths=p.AvgDeaths,AvgAssists=p.AvgAssists,AvgGpm=p.AvgGpm,AvgXpm=p.AvgXpm,CreatedAt=p.CreatedAt,UpdatedAt=DateTime.UtcNow };
+
+    async Task Save()
+    {
+        if (_e==null) return; _saving=true; _e.UpdatedAt=DateTime.UtcNow;
+        if (_e.Id==0) { Db.ProPlayers.Add(_e); }
+        else { var x=await Db.ProPlayers.FindAsync(_e.Id); if(x!=null){x.Nickname=_e.Nickname;x.RealName=_e.RealName;x.Country=_e.Country;x.Role=_e.Role;x.AvatarUrl=_e.AvatarUrl;x.Bio=_e.Bio;x.SteamId=_e.SteamId;x.TeamId=_e.TeamId;x.Status=_e.Status;x.TotalMatches=_e.TotalMatches;x.Wins=_e.Wins;x.AvgKills=_e.AvgKills;x.AvgDeaths=_e.AvgDeaths;x.AvgAssists=_e.AvgAssists;x.AvgGpm=_e.AvgGpm;x.UpdatedAt=DateTime.UtcNow;} }
+        await Db.SaveChangesAsync();
+        _players=await Db.ProPlayers.Include(p=>p.Team).OrderBy(p=>p.Nickname).ToListAsync();
+        _e=null; _saving=false;
+        Snackbar.Add("Игрок сохранён ✓", Severity.Success);
+    }
+
+    async Task Approve(ProPlayer p) { p.Status=ProPlayerStatus.Approved; await Db.SaveChangesAsync(); Snackbar.Add("Одобрено", Severity.Success); }
+    async Task Delete(ProPlayer p) { Db.ProPlayers.Remove(p); _players.Remove(p); await Db.SaveChangesAsync(); Snackbar.Add("Удалено", Severity.Warning); }
+    string RoleLbl(PlayerRole r) => r switch { PlayerRole.Carry=>"Керри",PlayerRole.Midlaner=>"Мид",PlayerRole.Offlaner=>"Офф",PlayerRole.SoftSupport=>"4 поз",PlayerRole.HardSupport=>"Саппорт",_=>"—" };
+    string StatusLbl(ProPlayerStatus s) => s switch { ProPlayerStatus.Approved=>"Одобрен",ProPlayerStatus.Rejected=>"Отклонён",_=>"Ожидает" };
+    string StatusStyle(ProPlayerStatus s) => s switch { ProPlayerStatus.Approved=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);", ProPlayerStatus.Rejected=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(232,64,87,.12);color:var(--accent);", _=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,184,0,.12);color:var(--gold);" };
+}

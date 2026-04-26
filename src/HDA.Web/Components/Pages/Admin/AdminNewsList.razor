@@ -1,0 +1,95 @@
+@page "/admin/news-list"
+@inject INewsService NewsService
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Manage News — HDA Admin</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+        <MudText Typo="Typo.h5" Style="color:#EAEAEA;">Manage Articles</MudText>
+    </MudStack>
+    <MudButton Href="/admin/news/0" Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add">Write Article</MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:8px;">
+        <MudTable Items="_articles" Dense="false" Hover="true" Style="background:transparent;">
+            <HeaderContent>
+                <MudTh Style="color:#8A8AAA;">Title</MudTh>
+                <MudTh Style="color:#8A8AAA;">Category</MudTh>
+                <MudTh Style="color:#8A8AAA;">Author</MudTh>
+                <MudTh Style="color:#8A8AAA;">Status</MudTh>
+                <MudTh Style="color:#8A8AAA;">Date</MudTh>
+                <MudTh Style="color:#8A8AAA;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudText Typo="Typo.body2" Style="color:#EAEAEA; font-weight:500; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        @context.Title
+                    </MudText>
+                </MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Style="font-size:0.65rem;">
+                        @context.Category
+                    </MudChip>
+                </MudTd>
+                <MudTd><MudText Style="color:#8A8AAA;">@context.Author?.Username</MudText></MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.IsPublished ? Color.Success : Color.Warning)"
+                             Style="font-size:0.65rem;">
+                        @(context.IsPublished ? "Published" : "Draft")
+                    </MudChip>
+                </MudTd>
+                <MudTd>
+                    <MudText Typo="Typo.caption" Style="color:#8A8AAA;">
+                        @context.CreatedAt.ToString("MMM dd, yyyy")
+                    </MudText>
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       Href="@($"/admin/news/{context.Id}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                       Href="@($"/news/{context.Slug}")" Target="_blank" />
+                        <MudIconButton Icon="@(context.IsPublished ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                       Size="Size.Small"
+                                       OnClick="@(() => TogglePublish(context))" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private List<NewsArticle> _articles = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _articles = await NewsService.GetAllAsync(pageSize: 100);
+        _loading = false;
+    }
+
+    private async Task TogglePublish(NewsArticle article)
+    {
+        await NewsService.PublishAsync(article.Id, !article.IsPublished);
+        article.IsPublished = !article.IsPublished;
+        Snackbar.Add(article.IsPublished ? "Published!" : "Unpublished.", Severity.Info);
+        StateHasChanged();
+    }
+}

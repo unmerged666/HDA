@@ -1,0 +1,241 @@
+@page "/admin/matches/{Id:int?}"
+@inject IMatchService MatchService
+@inject ITeamService TeamService
+@inject ITournamentService TournamentService
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAuthService AuthService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>@(_isNew ? "Schedule Match" : "Edit Match") — HDA Admin</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h5" Style="color:#EAEAEA;">@(_isNew ? "Schedule New Match" : "Edit Match")</MudText>
+</MudStack>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> }
+else
+{
+    <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:32px;">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.TournamentId" Label="Tournament *" Variant="Variant.Outlined" Required="true">
+                    @foreach (var t in _tournaments)
+                    {
+                        <MudSelectItem Value="t.Id">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.Format" Label="Format *" Variant="Variant.Outlined">
+                    @foreach (var f in Enum.GetValues<MatchFormat>())
+                    {
+                        <MudSelectItem Value="f">@f.ToString().ToUpper()</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.TeamAId" Label="Team A *" Variant="Variant.Outlined" Required="true">
+                    @foreach (var t in _teams)
+                    {
+                        <MudSelectItem Value="t.Id">@t.Name (@t.Tag)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.TeamBId" Label="Team B *" Variant="Variant.Outlined" Required="true">
+                    @foreach (var t in _teams.Where(t => t.Id != _form.TeamAId))
+                    {
+                        <MudSelectItem Value="t.Id">@t.Name (@t.Tag)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_scheduledDate" Label="Date *" Variant="Variant.Outlined" DateFormat="yyyy-MM-dd" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_scheduledTime" Label="Time (UTC) *" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.Status" Label="Status" Variant="Variant.Outlined">
+                    @foreach (var s in Enum.GetValues<MatchStatus>())
+                    {
+                        <MudSelectItem Value="s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            @if (_form.Status == MatchStatus.Completed)
+            {
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_form.TeamAScore" Label="Team A Score" Variant="Variant.Outlined" Min="0" Max="5" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_form.TeamBScore" Label="Team B Score" Variant="Variant.Outlined" Min="0" Max="5" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_form.WinnerId" Label="Winner" Variant="Variant.Outlined">
+                        <MudSelectItem T="int?" Value="@((int?)null)">— No winner —</MudSelectItem>
+                        @if (_form.TeamAId > 0)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)_form.TeamAId)">
+                                @_teams.FirstOrDefault(t => t.Id == _form.TeamAId)?.Name
+                            </MudSelectItem>
+                        }
+                        @if (_form.TeamBId > 0)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)_form.TeamBId)">
+                                @_teams.FirstOrDefault(t => t.Id == _form.TeamBId)?.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.TwitchUrl" Label="Twitch URL" Variant="Variant.Outlined"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Tv" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.YoutubeUrl" Label="YouTube URL" Variant="Variant.Outlined"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.PlayCircle" />
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Href="/admin">Cancel</MudButton>
+            @if (!_isNew)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteMatch">Delete</MudButton>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="_saving"
+                       StartIcon="@Icons.Material.Filled.Save">
+                @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" /> }
+                else { <span>@(_isNew ? "Schedule Match" : "Save Changes")</span> }
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private bool _isNew => Id == null || Id == 0;
+    private MatchForm _form = new();
+    private List<Team> _teams = [];
+    private List<Tournament> _tournaments = [];
+    private bool _loading = true, _saving;
+
+    private DateTime? _scheduledDate;
+    private TimeSpan? _scheduledTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams = await TeamService.GetRankingsAsync();
+        _tournaments = await TournamentService.GetAllAsync();
+
+        if (!_isNew)
+        {
+            var match = await MatchService.GetDetailAsync(Id!.Value);
+            if (match != null)
+            {
+                _form = new MatchForm
+                {
+                    TournamentId = match.TournamentId,
+                    TeamAId = match.TeamAId,
+                    TeamBId = match.TeamBId,
+                    Format = match.Format,
+                    Status = match.Status,
+                    ScheduledAt = match.ScheduledAt,
+                    TeamAScore = match.TeamAScore,
+                    TeamBScore = match.TeamBScore,
+                    WinnerId = match.WinnerId,
+                    TwitchUrl = match.TwitchUrl,
+                    YoutubeUrl = match.YoutubeUrl,
+                };
+                _scheduledDate = match.ScheduledAt.Date;
+                _scheduledTime = match.ScheduledAt.TimeOfDay;
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        var scheduled = _scheduledDate.HasValue
+            ? _scheduledDate.Value.Add(_scheduledTime ?? TimeSpan.Zero)
+            : _form.ScheduledAt ?? DateTime.UtcNow;
+        _form.ScheduledAt = DateTime.SpecifyKind(scheduled, DateTimeKind.Utc);
+        if (_isNew)
+        {
+            var match = new Match
+            {
+                TournamentId = _form.TournamentId,
+                TeamAId = _form.TeamAId,
+                TeamBId = _form.TeamBId,
+                Format = _form.Format,
+                Status = _form.Status,
+                ScheduledAt = _form.ScheduledAt ?? DateTime.UtcNow,
+                TeamAScore = _form.TeamAScore,
+                TeamBScore = _form.TeamBScore,
+                WinnerId = _form.WinnerId,
+                TwitchUrl = _form.TwitchUrl,
+                YoutubeUrl = _form.YoutubeUrl,
+            };
+            await MatchService.CreateAsync(match);
+            await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "CreateMatch", "Match", match.Id);
+        }
+        else
+        {
+            var match = await MatchService.GetDetailAsync(Id!.Value);
+            if (match != null)
+            {
+                match.TournamentId = _form.TournamentId;
+                match.TeamAId = _form.TeamAId;
+                match.TeamBId = _form.TeamBId;
+                match.Format = _form.Format;
+                match.Status = _form.Status;
+                match.ScheduledAt = _form.ScheduledAt ?? match.ScheduledAt;
+                match.TeamAScore = _form.TeamAScore;
+                match.TeamBScore = _form.TeamBScore;
+                match.WinnerId = _form.WinnerId;
+                match.TwitchUrl = _form.TwitchUrl;
+                match.YoutubeUrl = _form.YoutubeUrl;
+                await MatchService.UpdateAsync(match);
+                await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "UpdateMatch", "Match", match.Id);
+            }
+        }
+        _saving = false;
+        Snackbar.Add("Match saved!", Severity.Success);
+        Nav.NavigateTo("/admin");
+    }
+
+    private async Task DeleteMatch()
+    {
+        await MatchService.DeleteAsync(Id!.Value);
+        await AuthService.LogActivityAsync(AppState.CurrentUser!.Id, "DeleteMatch", "Match", Id);
+        Snackbar.Add("Match deleted.", Severity.Warning);
+        Nav.NavigateTo("/admin");
+    }
+
+    private class MatchForm
+    {
+        public int TournamentId { get; set; }
+        public int TeamAId { get; set; }
+        public int TeamBId { get; set; }
+        public MatchFormat Format { get; set; } = MatchFormat.Bo3;
+        public MatchStatus Status { get; set; } = MatchStatus.Scheduled;
+        public DateTime? ScheduledAt { get; set; }
+        public int? TeamAScore { get; set; }
+        public int? TeamBScore { get; set; }
+        public int? WinnerId { get; set; }
+        public string? TwitchUrl { get; set; }
+        public string? YoutubeUrl { get; set; }
+    }
+}

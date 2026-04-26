@@ -1,0 +1,106 @@
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🏆 Команды (@_teams.Count)</div>
+    <button class="adm-btn adm-btn-primary" @onclick="NewTeam">+ Добавить команду</button>
+</div>
+
+@if (_e != null)
+{
+    <div class="adm-card" style="padding:22px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
+            @(_e.Id==0?"Новая команда":"Редактировать: "+_e.Name)
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Название</label><input class="adm-field" @bind="_e.Name" /></div>
+            <div><label class="adm-label">Тег</label><input class="adm-field" @bind="_e.Tag" /></div>
+            <div><label class="adm-label">Организация</label><input class="adm-field" @bind="_e.Organization" /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Регион</label><input class="adm-field" @bind="_e.Region" /></div>
+            <div><label class="adm-label">Страна</label><input class="adm-field" @bind="_e.Country" /></div>
+            <div><label class="adm-label">Лого URL</label><input class="adm-field" @bind="_e.LogoUrl" /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Рейтинг (очки)</label><input class="adm-field" type="number" @bind="_e.RatingPoints" /></div>
+            <div><label class="adm-label">Мировой ранг</label><input class="adm-field" type="number" @bind="_e.WorldRank" /></div>
+            <div><label class="adm-label">Основана</label><input class="adm-field" type="date" value="@_e.Founded.ToString("yyyy-MM-dd")" @onchange="@(e=>_e.Founded=DateTime.Parse(e.Value?.ToString()??"2020-01-01"))" /></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="adm-btn adm-btn-primary" @onclick="Save" disabled="@_saving">@(_saving?"Сохранение...":"💾 Сохранить")</button>
+            <button class="adm-btn adm-btn-ghost" @onclick="@(()=>_e=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div class="adm-card">
+    <table class="hda-table">
+        <thead><tr><th>#</th><th>Команда</th><th>Регион</th><th>Рейтинг</th><th>Ранг</th><th>Действия</th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<5;i++){<tr><td colspan="6"><MudSkeleton Height="30px"/></td></tr>} }
+            else @foreach (var t in _teams.OrderBy(t=>t.WorldRank))
+            {
+                <tr>
+                    <td style="color:var(--t4);font-family:var(--font-mono);">@t.WorldRank</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="width:26px;height:26px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:var(--accent);flex-shrink:0;position:relative;">
+                                @if(!string.IsNullOrEmpty(t.LogoUrl)){<img src="@t.LogoUrl" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;"/>}
+                                else{@(t.Tag.Length>=2?t.Tag[..2]:t.Tag)}
+                            </div>
+                            <div><div style="font-weight:600;font-size:13px;">@t.Name</div><div style="font-size:10px;color:var(--t4);">@t.Tag</div></div>
+                        </div>
+                    </td>
+                    <td style="color:var(--t3);font-size:12px;">@t.Region</td>
+                    <td style="font-family:var(--font-mono);color:var(--accent);font-weight:700;">@t.RatingPoints</td>
+                    <td style="font-family:var(--font-mono);color:var(--t4);">#@t.WorldRank</td>
+                    <td>
+                        <div style="display:flex;gap:5px;">
+                            <button class="adm-btn adm-btn-ghost" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Edit(t))">✏ Изменить</button>
+                            <button class="adm-btn adm-btn-danger" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Delete(t))">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<Team> _teams = [];
+    private Team? _e;
+    private bool _loading=true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _loading = false;
+    }
+
+    void NewTeam() => _e = new Team { Founded=DateTime.UtcNow, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow };
+    void Edit(Team t) => _e = new Team { Id=t.Id, Name=t.Name, Tag=t.Tag, Organization=t.Organization, Region=t.Region, Country=t.Country, LogoUrl=t.LogoUrl, RatingPoints=t.RatingPoints, WorldRank=t.WorldRank, Founded=t.Founded, CreatedAt=t.CreatedAt, UpdatedAt=DateTime.UtcNow };
+
+    async Task Save()
+    {
+        if (_e==null) return;
+        _saving=true; _e.UpdatedAt=DateTime.UtcNow;
+        if (_e.Id==0) { Db.Teams.Add(_e); }
+        else { var x=await Db.Teams.FindAsync(_e.Id); if(x!=null){x.Name=_e.Name;x.Tag=_e.Tag;x.Organization=_e.Organization;x.Region=_e.Region;x.Country=_e.Country;x.LogoUrl=_e.LogoUrl;x.RatingPoints=_e.RatingPoints;x.WorldRank=_e.WorldRank;x.Founded=_e.Founded;x.UpdatedAt=DateTime.UtcNow;} }
+        await Db.SaveChangesAsync();
+        _teams=await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _e=null; _saving=false;
+        Snackbar.Add("Команда сохранена ✓", Severity.Success);
+    }
+
+    async Task Delete(Team t)
+    {
+        Db.Teams.Remove(t); _teams.Remove(t);
+        await Db.SaveChangesAsync();
+        Snackbar.Add("Удалено", Severity.Warning);
+    }
+}

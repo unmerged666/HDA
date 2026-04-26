@@ -1,0 +1,147 @@
+@page "/profile"
+@inject IAuthService AuthService
+@inject IProPlayerService PlayerService
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using HDA.Infrastructure.Services
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+
+<PageTitle>Мой профиль — HDA.gg</PageTitle>
+@if (!AppState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+
+<div style="padding:20px 24px 14px;border-bottom:1px solid var(--border);">
+    <div style="font-size:22px;font-weight:900;color:var(--t1);">Мой аккаунт</div>
+</div>
+
+<div style="display:grid;grid-template-columns:260px 1fr;gap:0;max-width:900px;">
+    <!-- Left -->
+    <div style="border-right:1px solid var(--border);padding:24px;">
+        <!-- Avatar -->
+        <div style="text-align:center;margin-bottom:24px;">
+            <div style="width:90px;height:90px;border-radius:14px;background:var(--red-a);border:2px solid rgba(232,64,87,0.25);overflow:hidden;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;color:#E84057;">
+                @if (!string.IsNullOrEmpty(AppState.CurrentUser!.AvatarUrl))
+                { <img src="@AppState.CurrentUser.AvatarUrl" style="width:100%;height:100%;object-fit:cover;" /> }
+                else { @AppState.CurrentUser!.Username[0].ToString().ToUpper() }
+            </div>
+            <!-- URL input for avatar -->
+            @if (_editingAvatar)
+            {
+                <input @bind="_avatarUrl" placeholder="URL изображения..."
+                       style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:5px;padding:7px 10px;font-size:12px;color:var(--t1);font-family:var(--font);margin-bottom:6px;box-sizing:border-box;" />
+                <button class="btn-red" style="width:100%;justify-content:center;padding:8px;margin-bottom:5px;font-size:11px;" @onclick="SaveAvatar" disabled="@_savingAva">
+                    @(_savingAva ? "..." : "Сохранить")
+                </button>
+                <button class="btn-ghost" style="width:100%;justify-content:center;padding:7px;font-size:11px;" @onclick="@(() => _editingAvatar = false)">Отмена</button>
+            }
+            else
+            {
+                <button class="btn-ghost" style="width:100%;justify-content:center;padding:8px;font-size:11px;" @onclick="@(() => { _avatarUrl = AppState.CurrentUser!.AvatarUrl ?? ""; _editingAvatar = true; })">
+                    Изменить аватар
+                </button>
+            }
+
+            <div style="font-size:18px;font-weight:800;color:var(--t1);margin-top:12px;">@AppState.CurrentUser!.Username</div>
+            <div style="font-size:12px;color:var(--t3);">@AppState.CurrentUser.Email</div>
+            <div style="margin-top:8px;">
+                <span class="btn-sm" style="background:@RoleBg();color:@RoleClr();border:none;cursor:default;">@RoleLbl()</span>
+            </div>
+            <div style="font-size:11px;color:var(--t4);margin-top:8px;">с @AppState.CurrentUser.CreatedAt.ToString("dd MMM yyyy")</div>
+        </div>
+
+        <!-- Pro status -->
+        <div style="border-top:1px solid var(--border);padding-top:16px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t4);margin-bottom:12px;">Про-статус</div>
+            @if (_pro == null)
+            {
+                <div style="font-size:12px;color:var(--t3);margin-bottom:12px;line-height:1.6;">Вы профессиональный игрок? Подайте заявку на верификацию.</div>
+                <a href="/pro-profile" class="btn-red" style="display:block;text-align:center;text-decoration:none;padding:9px;font-size:11px;">Подать заявку</a>
+            }
+            else
+            {
+                <div style="margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                        <span style="font-size:12px;color:var(--t4);">Статус</span>
+                        <span style="font-size:12px;font-weight:600;color:@StatusClr(_pro.Status);">@StatusLbl(_pro.Status)</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;">
+                        <span style="font-size:12px;color:var(--t4);">Никнейм</span>
+                        <span style="font-size:12px;font-weight:600;color:var(--t1);">@_pro.Nickname</span>
+                    </div>
+                </div>
+                <a href="/pro-profile" class="btn-ghost" style="display:block;text-align:center;text-decoration:none;padding:8px;font-size:11px;">Редактировать</a>
+            }
+        </div>
+    </div>
+
+    <!-- Right -->
+    <div style="padding:24px;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:22px;">
+            <div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E84057" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Сменить пароль
+            </div>
+            @if (_pwdErr != null) { <div style="background:rgba(232,64,87,0.08);border:1px solid rgba(232,64,87,0.2);border-radius:5px;padding:9px 12px;font-size:12px;color:#E84057;margin-bottom:12px;">@_pwdErr</div> }
+            @if (_pwdOk) { <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:5px;padding:9px 12px;font-size:12px;color:#22C55E;margin-bottom:12px;">Пароль изменён!</div> }
+            <MudTextField @bind-Value="_cur"  Label="Текущий пароль"         Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" />
+            <MudTextField @bind-Value="_new"  Label="Новый пароль"            Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" />
+            <MudTextField @bind-Value="_conf" Label="Подтвердите новый пароль" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" />
+            <button class="btn-red" style="padding:10px 24px;" @onclick="ChangePwd" disabled="@_changing">
+                @(_changing ? "Сохранение..." : "Изменить пароль")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private ProPlayer? _pro;
+    private string _avatarUrl = "", _cur = "", _new = "", _conf = "";
+    private string? _pwdErr;
+    private bool _pwdOk, _changing, _savingAva, _editingAvatar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AppState.IsAuthenticated) return;
+        _pro = await PlayerService.GetByUserIdAsync(AppState.CurrentUser!.Id);
+    }
+
+    private async Task SaveAvatar()
+    {
+        if (string.IsNullOrWhiteSpace(_avatarUrl)) return;
+        _savingAva = true;
+        var user = await Db.Users.FindAsync(AppState.CurrentUser!.Id);
+        if (user != null)
+        {
+            user.AvatarUrl = _avatarUrl.Trim();
+            await Db.SaveChangesAsync();
+            AppState.CurrentUser.AvatarUrl = _avatarUrl.Trim();
+            AppState.SetUser(AppState.CurrentUser);
+        }
+        _savingAva = false;
+        _editingAvatar = false;
+        Snackbar.Add("Аватар обновлён!", Severity.Success);
+    }
+
+    private async Task ChangePwd()
+    {
+        _pwdErr = null; _pwdOk = false;
+        if (_new != _conf) { _pwdErr = "Пароли не совпадают"; return; }
+        if (_new.Length < 6) { _pwdErr = "Минимум 6 символов"; return; }
+        _changing = true;
+        var ok = await AuthService.ChangePasswordAsync(AppState.CurrentUser!.Id, _cur, _new);
+        _changing = false;
+        if (ok) { _pwdOk = true; _cur = _new = _conf = ""; }
+        else _pwdErr = "Неверный текущий пароль";
+    }
+
+    private string RoleBg() => AppState.CurrentUser!.Role switch { UserRole.Admin => "#E84057", UserRole.ProPlayer => "rgba(245,158,11,0.15)", _ => "var(--bg3)" };
+    private string RoleClr() => AppState.CurrentUser!.Role switch { UserRole.Admin => "#fff", UserRole.ProPlayer => "#F59E0B", _ => "var(--t3)" };
+    private string RoleLbl() => AppState.CurrentUser!.Role switch { UserRole.Admin => "Администратор", UserRole.ProPlayer => "Про-игрок", _ => "Пользователь" };
+    private string StatusClr(ProPlayerStatus s) => s switch { ProPlayerStatus.Approved => "#22C55E", ProPlayerStatus.Rejected => "#E84057", _ => "#F59E0B" };
+    private string StatusLbl(ProPlayerStatus s) => s switch { ProPlayerStatus.Approved => "Одобрен", ProPlayerStatus.Rejected => "Отклонён", _ => "На рассмотрении" };
+}

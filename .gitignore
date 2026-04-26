@@ -1,0 +1,27 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.log
+
+## EF Core
+*.db
+*.db-shm
+*.db-wal
+
+## Docker
+.env
+
+## Uploads (user-generated content - don't commit)
+src/HDA.Web/wwwroot/uploads/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## NuGet
+*.nupkg
+packages/

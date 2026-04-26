@@ -1,0 +1,98 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:var(--t1);font-family:var(--font-display);">🎯 Турниры (@_items.Count)</div>
+    <button class="adm-btn adm-btn-primary" @onclick="NewItem">+ Добавить турнир</button>
+</div>
+
+@if (_e != null)
+{
+    <div class="adm-card" style="padding:22px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
+            @(_e.Id==0?"Новый турнир":"Редактировать: "+_e.Name)
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Название</label><input class="adm-field" @bind="_e.Name" /></div>
+            <div><label class="adm-label">Организатор</label><input class="adm-field" @bind="_e.Organizer" /></div>
+            <div><label class="adm-label">Регион</label><input class="adm-field" @bind="_e.Region" /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Призовой фонд ($)</label><input class="adm-field" type="number" @bind="_e.PrizePool" /></div>
+            <div>
+                <label class="adm-label">Уровень</label>
+                <select class="adm-field" @bind="_e.Tier">
+                    @foreach (TournamentTier t in Enum.GetValues<TournamentTier>()) { <option value="@t">@t</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Статус</label>
+                <select class="adm-field" @bind="_e.Status">
+                    @foreach (TournamentStatus s in Enum.GetValues<TournamentStatus>()) { <option value="@s">@StatusLbl(s)</option> }
+                </select>
+            </div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Дата начала</label><input class="adm-field" type="date" value="@_e.StartDate.ToString("yyyy-MM-dd")" @onchange="@(e=>_e.StartDate=DateTime.SpecifyKind(DateTime.Parse(e.Value?.ToString()??DateTime.UtcNow.ToString()),DateTimeKind.Utc))" /></div>
+            <div><label class="adm-label">Дата конца</label><input class="adm-field" type="date" value="@_e.EndDate.ToString("yyyy-MM-dd")" @onchange="@(e=>_e.EndDate=DateTime.SpecifyKind(DateTime.Parse(e.Value?.ToString()??DateTime.UtcNow.ToString()),DateTimeKind.Utc))" /></div>
+            <div><label class="adm-label">Локация</label><input class="adm-field" @bind="_e.Location" /></div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr;">
+            <div><label class="adm-label">Описание</label><textarea class="adm-field" @bind="_e.Description" rows="2"></textarea></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="adm-btn adm-btn-primary" @onclick="Save" disabled="@_saving">@(_saving?"Сохранение...":"💾 Сохранить")</button>
+            <button class="adm-btn adm-btn-ghost" @onclick="@(()=>_e=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div class="adm-card">
+    <table class="hda-table">
+        <thead><tr><th>Турнир</th><th>Организатор</th><th>Призовой фонд</th><th>Уровень</th><th>Статус</th><th>Даты</th><th>Действия</th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<4;i++){<tr><td colspan="7"><MudSkeleton Height="30px"/></td></tr>} }
+            else @foreach (var t in _items.OrderByDescending(t=>t.StartDate))
+            {
+                <tr>
+                    <td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@t.Name</td>
+                    <td style="font-size:12px;color:var(--t3);">@t.Organizer</td>
+                    <td style="font-family:var(--font-mono);color:var(--gold);font-weight:700;">$@(t.PrizePool>=1_000_000?$"{t.PrizePool/1_000_000m:0.#}M":$"{t.PrizePool/1_000m:0}K")</td>
+                    <td style="font-size:11px;color:var(--t2);">@t.Tier</td>
+                    <td><span style="@StatusStyle(t.Status)">@StatusLbl(t.Status)</span></td>
+                    <td style="font-size:10px;color:var(--t4);font-family:var(--font-mono);">@t.StartDate.ToString("dd.MM")–@t.EndDate.ToString("dd.MM.yy")</td>
+                    <td>
+                        <div style="display:flex;gap:5px;">
+                            <button class="adm-btn adm-btn-ghost" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Edit(t))">✏</button>
+                            <button class="adm-btn adm-btn-danger" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Delete(t))">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<Tournament> _items=[]; private Tournament? _e; private bool _loading=true, _saving;
+
+    protected override async Task OnInitializedAsync() { _items=await Db.Tournaments.ToListAsync(); _loading=false; }
+    void NewItem() => _e = new Tournament { StartDate=DateTime.UtcNow, EndDate=DateTime.UtcNow.AddDays(7), Status=TournamentStatus.Upcoming, Tier=TournamentTier.B, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow };
+    void Edit(Tournament t) => _e = new Tournament { Id=t.Id,Name=t.Name,Organizer=t.Organizer,Region=t.Region,PrizePool=t.PrizePool,Tier=t.Tier,Status=t.Status,StartDate=t.StartDate,EndDate=t.EndDate,Location=t.Location,Description=t.Description,LogoUrl=t.LogoUrl,CreatedAt=t.CreatedAt,UpdatedAt=DateTime.UtcNow };
+    async Task Save()
+    {
+        if (_e==null) return; _saving=true; _e.UpdatedAt=DateTime.UtcNow;
+        if (_e.Id==0) { Db.Tournaments.Add(_e); }
+        else { var x=await Db.Tournaments.FindAsync(_e.Id); if(x!=null){x.Name=_e.Name;x.Organizer=_e.Organizer;x.Region=_e.Region;x.PrizePool=_e.PrizePool;x.Tier=_e.Tier;x.Status=_e.Status;x.StartDate=_e.StartDate;x.EndDate=_e.EndDate;x.Location=_e.Location;x.Description=_e.Description;x.UpdatedAt=DateTime.UtcNow;} }
+        await Db.SaveChangesAsync(); _items=await Db.Tournaments.ToListAsync(); _e=null; _saving=false;
+        Snackbar.Add("Турнир сохранён ✓", Severity.Success);
+    }
+    async Task Delete(Tournament t) { Db.Tournaments.Remove(t); _items.Remove(t); await Db.SaveChangesAsync(); Snackbar.Add("Удалено", Severity.Warning); }
+    string StatusLbl(TournamentStatus s) => s switch { TournamentStatus.Ongoing=>"Активен", TournamentStatus.Upcoming=>"Скоро", TournamentStatus.Completed=>"Завершён", _=>"?" };
+    string StatusStyle(TournamentStatus s) => s switch { TournamentStatus.Ongoing=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);", TournamentStatus.Upcoming=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(75,158,255,.12);color:var(--blue);", _=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--t3);" };
+}

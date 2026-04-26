@@ -1,0 +1,256 @@
+@page "/matches/{Id:int}"
+@inject IMatchService MatchService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Матч — HDA.gg</PageTitle>
+
+@if (_loading) { <MudProgressLinear Indeterminate="true" Color="Color.Error" Style="height:2px;" /> }
+else if (_match == null) { <div style="padding:40px;text-align:center;color:var(--t3);">Матч не найден</div> }
+else
+{
+    <!-- Match header -->
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:32px 24px;position:relative;overflow:hidden;">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 40% 100% at 0% 50%,@TeamGlow(_match.TeamAId) 0%,transparent 60%),radial-gradient(ellipse 40% 100% at 100% 50%,@TeamGlow(_match.TeamBId) 0%,transparent 60%);pointer-events:none;"></div>
+        <div style="position:relative;">
+            <div style="text-align:center;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t3);margin-bottom:20px;">
+                @_match.Tournament?.Name @(_match.Stage != null ? $" · {_match.Stage.Name}" : "")
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 180px 1fr;align-items:center;gap:16px;max-width:800px;margin:0 auto;">
+                <!-- Team A -->
+                <div style="text-align:center;">
+                    <div style="width:72px;height:72px;border-radius:14px;background:var(--bg3);border:1px solid var(--border2);overflow:hidden;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:var(--red);">
+                        @if (!string.IsNullOrEmpty(_match.TeamA?.LogoUrl)) { <img src="@_match.TeamA.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                        else { @(_match.TeamA?.Tag?.Substring(0,2)) }
+                    </div>
+                    <a href="/teams/@_match.TeamAId" style="font-size:20px;font-weight:900;text-decoration:none;color:@ScoreClr(_match.TeamAId);">@_match.TeamA?.Name</a>
+                    <div style="font-size:11px;color:var(--t3);margin-top:3px;">@_match.TeamA?.Tag · @_match.TeamA?.Region</div>
+                </div>
+
+                <!-- Center -->
+                <div style="text-align:center;">
+                    @if (_match.Status is MatchStatus.Completed or MatchStatus.Live)
+                    {
+                        @if (_match.Status == MatchStatus.Live) { <div class="badge-live" style="margin-bottom:10px;">LIVE</div> }
+                        <div style="font-size:48px;font-weight:900;color:var(--t1);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:4px;">
+                            <span style="color:@ScoreClr(_match.TeamAId);">@_match.TeamAScore</span>
+                            <span style="color:var(--t4);font-size:32px;"> — </span>
+                            <span style="color:@ScoreClr(_match.TeamBId);">@_match.TeamBScore</span>
+                        </div>
+                        <div style="font-size:10px;color:var(--t3);margin-top:8px;letter-spacing:1px;text-transform:uppercase;">
+                            @(_match.Status == MatchStatus.Live ? "В прямом эфире" : "Финал")
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="font-size:32px;font-weight:900;color:var(--t4);">VS</div>
+                        <div style="font-size:20px;font-weight:800;color:var(--red);margin-top:6px;">@_match.ScheduledAt.ToLocalTime().ToString("HH:mm")</div>
+                        <div style="font-size:11px;color:var(--t3);">@_match.ScheduledAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                    }
+                    <div style="margin-top:10px;"><span class="badge-fmt" style="font-size:11px;">@_match.Format.ToString().ToUpper()</span></div>
+                    @if (_match.TwitchUrl != null || _match.YoutubeUrl != null)
+                    {
+                        <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">
+                            @if (_match.TwitchUrl != null) { <a href="@_match.TwitchUrl" target="_blank" style="background:#9146FF;color:#fff;padding:5px 14px;border-radius:4px;font-size:10px;font-weight:800;text-decoration:none;letter-spacing:0.5px;">TWITCH</a> }
+                            @if (_match.YoutubeUrl != null) { <a href="@_match.YoutubeUrl" target="_blank" style="background:#FF0000;color:#fff;padding:5px 14px;border-radius:4px;font-size:10px;font-weight:800;text-decoration:none;letter-spacing:0.5px;">YOUTUBE</a> }
+                        </div>
+                    }
+                </div>
+
+                <!-- Team B -->
+                <div style="text-align:center;">
+                    <div style="width:72px;height:72px;border-radius:14px;background:var(--bg3);border:1px solid var(--border2);overflow:hidden;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:var(--red);">
+                        @if (!string.IsNullOrEmpty(_match.TeamB?.LogoUrl)) { <img src="@_match.TeamB.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                        else { @(_match.TeamB?.Tag?.Substring(0,2)) }
+                    </div>
+                    <a href="/teams/@_match.TeamBId" style="font-size:20px;font-weight:900;text-decoration:none;color:@ScoreClr(_match.TeamBId);">@_match.TeamB?.Name</a>
+                    <div style="font-size:11px;color:var(--t3);margin-top:3px;">@_match.TeamB?.Tag · @_match.TeamB?.Region</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Games -->
+    @if (_match.Games.Any())
+    {
+        <div style="padding:0;">
+            @foreach (var game in _match.Games.OrderBy(g => g.MapNumber))
+            {
+                var isOpen = _openGame == game.Id || _match.Games.Count == 1;
+                <div style="border-bottom:1px solid var(--border);">
+                    <!-- Game header (clickable) -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;cursor:pointer;transition:background 0.12s;background:@(isOpen?"var(--bg2)":"transparent");"
+                         @onclick="@(() => _openGame = isOpen && _match.Games.Count > 1 ? 0 : game.Id)">
+                        <div style="display:flex;align-items:center;gap:16px;">
+                            <span style="font-size:14px;font-weight:800;color:var(--t1);">Карта @game.MapNumber</span>
+                            @if (game.WinnerTeamId.HasValue)
+                            {
+                                var winner = game.WinnerTeamId == _match.TeamAId ? _match.TeamA?.Tag : _match.TeamB?.Tag;
+                                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;background:var(--green-a);color:var(--green);">@winner победила</span>
+                            }
+                        </div>
+                        <div style="display:flex;align-items:center;gap:20px;">
+                            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                                <span style="color:var(--green);font-weight:700;">Radiant @game.RadiantKills</span>
+                                <span style="color:var(--t4);">—</span>
+                                <span style="color:var(--red);font-weight:700;">@game.DireKills Dire</span>
+                            </div>
+                            <span style="font-size:12px;color:var(--t3);">@TimeSpan.FromSeconds(game.DurationSeconds).ToString(@"mm\:ss")</span>
+                            <span style="color:var(--t3);font-size:16px;transform:@(isOpen?"rotate(180deg)":"rotate(0)");transition:transform 0.2s;display:inline-block;">▼</span>
+                        </div>
+                    </div>
+
+                    @if (isOpen)
+                    {
+                        <!-- Draft -->
+                        @if (game.Drafts.Any())
+                        {
+                            <div style="padding:16px 24px;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+                                <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t4);margin-bottom:12px;">Драфт</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                    @foreach (var side in new[]{ (true, "Radiant", "var(--green)"), (false, "Dire", "var(--red)") })
+                                    {
+                                        <div>
+                                            <div style="font-size:10px;font-weight:800;color:@side.Item3;letter-spacing:1px;margin-bottom:8px;">@side.Item2</div>
+                                            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                                                @foreach (var d in game.Drafts.Where(x => x.IsRadiant == side.Item1).OrderBy(x => x.Order))
+                                                {
+                                                    <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;background:@(d.Action==DraftAction.Pick?"rgba(34,197,94,0.1)":"rgba(232,64,87,0.1)");color:@(d.Action==DraftAction.Pick?"var(--green)":"var(--red)");border:1px solid @(d.Action==DraftAction.Pick?"rgba(34,197,94,0.2)":"rgba(232,64,87,0.2)");">
+                                                        @(d.Action == DraftAction.Ban ? "✕ " : "")@d.Hero?.LocalizedName
+                                                    </span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Scoreboard -->
+                        @if (game.PlayerStats.Any())
+                        {
+                            <div style="overflow-x:auto;">
+                                <table class="hda-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Игрок</th><th>Герой</th>
+                                            <th style="color:var(--green);">У</th>
+                                            <th style="color:var(--red);">С</th>
+                                            <th style="color:var(--amber);">П</th>
+                                            <th style="color:#FFD700;">GPM</th>
+                                            <th style="color:#60A5FA;">XPM</th>
+                                            <th>ЧИ</th>
+                                            <th>ПОС</th>
+                                            <th>Ур.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var s in game.PlayerStats.OrderBy(p => p.IsRadiant ? 0 : 1))
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <span style="font-weight:700;color:@(s.IsRadiant?"var(--green)":"var(--red)");">@s.ProPlayer?.Nickname</span>
+                                                </td>
+                                                <td style="color:var(--t2);">@s.Hero?.LocalizedName</td>
+                                                <td style="color:var(--green);font-weight:800;">@s.Kills</td>
+                                                <td style="color:var(--red);font-weight:700;">@s.Deaths</td>
+                                                <td style="color:var(--amber);font-weight:700;">@s.Assists</td>
+                                                <td style="color:#FFD700;font-weight:600;">@s.Gpm</td>
+                                                <td style="color:#60A5FA;">@s.Xpm</td>
+                                                <td style="color:var(--t2);">@s.NetWorth.ToString("N0")</td>
+                                                <td style="color:var(--t3);">@s.LastHits/@s.Denies</td>
+                                                <td style="color:var(--t2);font-weight:700;">@s.Level</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Team totals -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);">
+                                @foreach (var (side, stats, color) in new[]
+                                {
+                                    ("Radiant", game.PlayerStats.Where(p => p.IsRadiant).ToList(), "var(--green)"),
+                                    ("Dire",    game.PlayerStats.Where(p => !p.IsRadiant).ToList(), "var(--red)")
+                                })
+                                {
+                                    <div style="padding:12px 16px;background:var(--bg2);">
+                                        <div style="font-size:10px;font-weight:800;color:@color;letter-spacing:1px;margin-bottom:8px;">@side — итоги</div>
+                                        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                                            @foreach (var (l, v) in new[]
+                                            {
+                                                ("Убийства", stats.Sum(s=>s.Kills).ToString()),
+                                                ("GPM avg",  ((int)stats.Average(s=>s.Gpm)).ToString()),
+                                                ("XPM avg",  ((int)stats.Average(s=>s.Xpm)).ToString()),
+                                                ("Урон",     (stats.Sum(s=>s.HeroDamage)/1000).ToString()+"k"),
+                                            })
+                                            {
+                                                <div style="text-align:center;">
+                                                    <div style="font-size:14px;font-weight:800;color:var(--t1);">@v</div>
+                                                    <div style="font-size:9px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;">@l</div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <!-- Kill comparison bar -->
+                        @if (game.RadiantKills + game.DireKills > 0)
+                        {
+                            var total = game.RadiantKills + game.DireKills;
+                            var radPct = (double)game.RadiantKills / total * 100;
+                            <div style="padding:14px 24px;background:var(--bg2);border-top:1px solid var(--border);">
+                                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+                                    <span style="color:var(--green);font-weight:700;">Radiant @game.RadiantKills убийств</span>
+                                    <span style="color:var(--t4);font-size:10px;">УБИЙСТВА</span>
+                                    <span style="color:var(--red);font-weight:700;">@game.DireKills убийств Dire</span>
+                                </div>
+                                <div style="height:8px;border-radius:4px;background:rgba(232,64,87,0.3);overflow:hidden;">
+                                    <div style="height:100%;width:@radPct.ToString("F1")%;background:var(--green);border-radius:4px;transition:width 0.5s;"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div style="padding:48px;text-align:center;color:var(--t3);">
+            @if (_match.Status == MatchStatus.Scheduled)
+            {
+                <div style="font-size:14px;">Матч ещё не начался · @_match.ScheduledAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</div>
+            }
+            else
+            {
+                <div style="font-size:14px;">Подробная статистика по картам недоступна</div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Match? _match;
+    private bool _loading = true;
+    private int _openGame;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _match = await MatchService.GetDetailAsync(Id);
+        if (_match?.Games.Count == 1) _openGame = _match.Games.First().Id;
+        _loading = false;
+    }
+
+    private string ScoreClr(int? id) => _match?.Status == MatchStatus.Completed
+        ? (_match.WinnerId == id ? "var(--green)" : "var(--t3)")
+        : "var(--t1)";
+
+    private string TeamGlow(int? id) => _match?.WinnerId == id
+        ? "rgba(34,197,94,0.04)" : "rgba(232,64,87,0.03)";
+}

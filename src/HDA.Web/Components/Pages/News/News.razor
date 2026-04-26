@@ -1,0 +1,101 @@
+@page "/news"
+@inject INewsService NewsService
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Новости — HDA.gg</PageTitle>
+
+<div style="padding:20px 24px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div class="page-title">Новости</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        @foreach (var c in _cats)
+        {
+            <button class="btn-sm" style="background:@(_cat==c.Key?"var(--red-a)":"transparent");color:@(_cat==c.Key?"var(--red)":"var(--t3)");border:1px solid @(_cat==c.Key?"rgba(232,64,87,0.3)":"var(--border)");"
+                    @onclick="@(()=>SetCat(c.Key))">@c.V</button>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1px;background:var(--border);padding:0;">
+        @for(int i=0;i<6;i++) { <div style="background:var(--bg2);padding:0;"><MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="160px" /><div style="padding:16px;"><MudSkeleton Height="14px" Width="60%" Style="margin-bottom:8px;" /><MudSkeleton Height="16px" /><MudSkeleton Height="16px" Width="80%" /></div></div> }
+    </div>
+}
+else if (!_articles.Any())
+{
+    <div style="padding:60px;text-align:center;color:var(--t3);font-size:13px;">Новостей нет</div>
+}
+else
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));">
+        @foreach (var a in _articles)
+        {
+            <div style="background:var(--bg2);cursor:pointer;transition:background 0.12s;display:flex;flex-direction:column;border-bottom:1px solid var(--border);"
+                 @onclick="@(()=>Nav.NavigateTo($"/news/{a.Slug}"))"
+                 @onmouseover="@(()=>_hov=a.Id)" @onmouseout="@(()=>_hov=0)">
+                @if (!string.IsNullOrEmpty(a.ImageUrl))
+                { <img src="@a.ImageUrl" style="width:100%;height:160px;object-fit:cover;display:block;transition:transform 0.3s;" /> }
+                else
+                {
+                    <div style="height:80px;background:linear-gradient(135deg,var(--bg3),var(--bg4));display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border);">
+                        <span style="font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:@CatColor(a.Category);opacity:0.6;">@CatLbl(a.Category)</span>
+                    </div>
+                }
+                <div style="padding:16px;flex:1;display:flex;flex-direction:column;">
+                    <span class="news-cat @CatClass(a.Category)" style="margin-bottom:8px;align-self:flex-start;">@CatLbl(a.Category)</span>
+                    <div style="font-size:14px;font-weight:700;color:var(--t1);line-height:1.4;margin-bottom:8px;flex:1;">@a.Title</div>
+                    @if (!string.IsNullOrEmpty(a.Summary)) { <div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px;">@(a.Summary.Length>100?a.Summary[..97]+"...":a.Summary)</div> }
+                    <div style="font-size:11px;color:var(--t4);">@a.Author?.Username · @a.PublishedAt?.ToString("dd MMM yyyy")</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (!_done)
+    {
+        <div style="padding:24px;text-align:center;">
+            <button class="btn-ghost" style="font-size:12px;" @onclick="More">Загрузить ещё</button>
+        </div>
+    }
+}
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private List<NewsArticle> _articles=[];
+    private string _cat="";
+    private bool _loading=true, _done;
+    private int _page=1, _hov;
+
+    private record CI(string Key, string V);
+    private readonly List<CI> _cats =
+    [
+        new("","Все"), new("Result","Результаты"), new("Transfer","Трансферы"),
+        new("Patch","Патчи"), new("Interview","Интервью"), new("Analysis","Аналитика"),
+    ];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task SetCat(string c) { _cat=c; await Load(); }
+
+    private async Task Load()
+    {
+        _loading=true; _page=1;
+        _articles = await NewsService.GetPublishedAsync(string.IsNullOrEmpty(_cat)?null:_cat, 1, 9);
+        _done = _articles.Count < 9;
+        _loading = false;
+    }
+
+    private async Task More()
+    {
+        _page++;
+        var more = await NewsService.GetPublishedAsync(string.IsNullOrEmpty(_cat)?null:_cat, _page, 9);
+        if (more.Count < 9) _done = true;
+        _articles.AddRange(more);
+    }
+
+    private string CatClass(string? c) => c switch { "Result"=>"nc-result","Transfer"=>"nc-transfer","Patch"=>"nc-patch","Interview"=>"nc-interview","Analysis"=>"nc-analysis",_=>"nc-news" };
+    private string CatLbl(string? c) => c switch { "Result"=>"Результат","Transfer"=>"Трансфер","Patch"=>"Патч","Interview"=>"Интервью","Analysis"=>"Аналитика",_=>"Новость" };
+    private string CatColor(string? c) => c switch { "Result"=>"var(--green)","Patch"=>"var(--purple)","Transfer"=>"var(--amber)",_=>"var(--t3)" };
+}

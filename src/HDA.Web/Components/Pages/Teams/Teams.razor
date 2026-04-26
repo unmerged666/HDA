@@ -1,0 +1,79 @@
+@page "/teams"
+@inject ITeamService TeamService
+@using HDA.Domain.Entities
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Рейтинг команд — HDA.gg</PageTitle>
+
+<div class="page-header">
+    <div class="page-title">Рейтинг команд</div>
+    <div class="page-sub">Мировой рейтинг профессиональных команд Dota 2</div>
+</div>
+<div style="padding:10px 24px;border-bottom:1px solid var(--border);">
+    <a href="/teams/compare" class="btn-ghost" style="font-size:11px;padding:7px 16px;text-decoration:none;">⚔ Сравнить две команды</a>
+</div>
+
+@if (_loading)
+{
+    <div style="padding:16px;">@for(int i=0;i<10;i++){<MudSkeleton Height="52px" Style="margin-bottom:4px;"/>}</div>
+}
+else
+{
+    <table class="hda-table">
+        <thead>
+            <tr>
+                <th style="width:52px;">#</th>
+                <th>Команда</th>
+                <th>Регион</th>
+                <th>Рейтинг</th>
+                <th>Состав</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{ int rn = 1; }
+            @foreach (var t in _teams)
+            {
+                var r = rn; var tid = t.Id;
+                <tr style="cursor:pointer;" @onclick="@(() => Nav.NavigateTo($"/teams/{tid}"))">
+                    <td>
+                        <span style="font-size:15px;font-weight:900;color:@RC(r);font-variant-numeric:tabular-nums;">@r</span>
+                    </td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="width:36px;height:36px;border-radius:7px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--red);">
+                                @if (!string.IsNullOrEmpty(t.LogoUrl)) { <img src="@t.LogoUrl" alt="@t.Name" style="width:100%;height:100%;object-fit:contain;" /> }
+                                else { <span>@(t.Tag.Substring(0,Math.Min(2,t.Tag.Length)))</span> }
+                            </div>
+                            <div>
+                                <div style="font-size:14px;font-weight:700;color:var(--t1);">@t.Name</div>
+                                <div style="font-size:10px;color:var(--t3);font-weight:600;">@t.Tag</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="color:var(--t2);">@t.Region</td>
+                    <td>
+                        <span style="font-size:14px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums;">@t.RatingPoints</span>
+                        <span style="font-size:10px;color:var(--t4);margin-left:2px;">pts</span>
+                    </td>
+                    <td style="color:var(--t3);">@t.Players.Count<span style="color:var(--t4);">/5</span></td>
+                </tr>
+                rn++;
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private List<Team> _teams = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _teams = await TeamService.GetRankingsAsync();
+        _loading = false;
+    }
+
+    private string RC(int r) => r switch { 1=>"#FFD700", 2=>"#C0C0C0", 3=>"#CD7F32", _=>"var(--t4)" };
+}

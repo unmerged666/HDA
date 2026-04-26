@@ -1,0 +1,50 @@
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@using HDA.Domain.Entities
+
+<div style="margin-bottom:16px;font-size:16px;font-weight:700;color:var(--t1);font-family:var(--font-display);">📋 Логи активности</div>
+
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    @if (_loading)
+    {
+        <div style="padding:24px;"><MudSkeleton Height="40px" /><MudSkeleton Height="40px" Style="margin-top:8px;" /><MudSkeleton Height="40px" Style="margin-top:8px;" /></div>
+    }
+    else if (!_logs.Any())
+    {
+        <div style="padding:40px;text-align:center;color:var(--t3);">Логов нет</div>
+    }
+    else
+    {
+        <table class="hda-table">
+            <thead><tr><th>Пользователь</th><th>Действие</th><th>Детали</th><th>Время</th></tr></thead>
+            <tbody>
+                @foreach (var l in _logs)
+                {
+                    <tr>
+                        <td style="font-size:12px;color:var(--t2);">@(l.User?.Username ?? "—")</td>
+                        <td style="font-weight:600;">@l.Action</td>
+                        <td style="font-size:11px;color:var(--t3);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@l.Details</td>
+                        <td style="font-size:11px;color:var(--t4);font-family:var(--font-mono);">@l.CreatedAt.ToString("dd.MM.yy HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<ActivityLog> _logs = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _logs = await Db.ActivityLogs
+            .Include(l => l.User)
+            .OrderByDescending(l => l.CreatedAt)
+            .Take(100)
+            .ToListAsync();
+        _loading = false;
+    }
+}

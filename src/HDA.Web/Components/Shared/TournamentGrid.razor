@@ -1,0 +1,47 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@inject NavigationManager Nav
+
+@if (!Tournaments.Any())
+{ <div style="padding:48px;text-align:center;color:var(--t3);font-size:13px;">Турниры не найдены</div> }
+else
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1px;background:var(--border);padding:1px;">
+        @foreach (var t in Tournaments)
+        {
+            <div class="tourn-card" style="border-radius:0;border:none;" @onclick="@(() => Nav.NavigateTo($"/tournaments/{t.Id}"))">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                    <div style="width:44px;height:44px;border-radius:9px;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--red);flex-shrink:0;overflow:hidden;">
+                        @if (!string.IsNullOrEmpty(t.LogoUrl)) { <img src="@t.LogoUrl" style="width:36px;height:36px;object-fit:contain;" /> }
+                        else { <span>TI</span> }
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:14px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@t.Name</div>
+                        <div style="font-size:10px;color:var(--t3);margin-top:2px;">@t.Organizer · @t.Region</div>
+                    </div>
+                    <span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;background:@TierBg(t.Tier);color:@TierColor(t.Tier);flex-shrink:0;">ТИР @((int)t.Tier)</span>
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:space-between;align-items:flex-end;">
+                    <div>
+                        <div style="font-size:9px;color:var(--t4);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Призовой фонд</div>
+                        <div class="prize">$@t.PrizePool.ToString("N0")</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:9px;color:var(--t4);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Даты</div>
+                        <div style="font-size:12px;color:var(--t2);">@t.StartDate.ToString("dd MMM") – @t.EndDate.ToString("dd MMM yyyy")</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<Tournament> Tournaments { get; set; } = [];
+
+    private string TierBg(TournamentTier t) => t switch
+    { TournamentTier.S=>"rgba(255,215,0,0.1)", TournamentTier.A=>"var(--red-a)", TournamentTier.B=>"var(--purple-a)", _=>"var(--bg3)" };
+
+    private string TierColor(TournamentTier t) => t switch
+    { TournamentTier.S=>"#FFD700", TournamentTier.A=>"var(--red)", TournamentTier.B=>"var(--purple)", _=>"var(--t3)" };
+}

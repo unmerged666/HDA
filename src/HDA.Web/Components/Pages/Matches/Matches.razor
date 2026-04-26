@@ -1,0 +1,86 @@
+@page "/matches"
+@inject IMatchService MatchService
+@inject ITournamentService TournamentService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Матчи — HDA.gg</PageTitle>
+
+<div class="page-header">
+    <div class="page-title">Матчи</div>
+    <div class="page-sub">Расписание и результаты профессиональных матчей Dota 2</div>
+</div>
+
+<MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true" PanelClass="pa-0"
+         Style="border-bottom:1px solid var(--border);" @bind-ActivePanelIndex="_tab">
+    <MudTabPanel Text="ПРЕДСТОЯЩИЕ" BadgeData="@(_upcoming.Count>0?_upcoming.Count:null)" BadgeColor="Color.Error" />
+    <MudTabPanel Text="LIVE" BadgeData="@(_live.Count>0?_live.Count:null)" BadgeColor="Color.Error" />
+    <MudTabPanel Text="РЕЗУЛЬТАТЫ" />
+</MudTabs>
+
+<!-- Tournament filter -->
+<div style="padding:8px 20px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+    <span style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t4);font-family:var(--font-display);margin-right:4px;">ТУРНИР</span>
+    <button @onclick="@(()=>_tournFilter=0)" style="@FBtn(0)">Все</button>
+    @foreach (var t in _tournaments)
+    { <button @onclick="@(()=>_tournFilter=t.Id)" style="@FBtn(t.Id)">@t.Name</button> }
+</div>
+
+@if (_loading)
+{
+    @for (int i = 0; i < 6; i++)
+    { <div style="padding:14px 20px;border-bottom:1px solid var(--border);"><MudSkeleton Height="48px" /></div> }
+}
+else
+{
+    var matches = _tab switch
+    {
+        0 => _upcoming.Where(m => _tournFilter == 0 || m.TournamentId == _tournFilter).ToList(),
+        1 => _live.Where(m => _tournFilter == 0 || m.TournamentId == _tournFilter).ToList(),
+        _ => _recent.Where(m => _tournFilter == 0 || m.TournamentId == _tournFilter).ToList()
+    };
+
+    @if (!matches.Any())
+    {
+        <div style="padding:60px;text-align:center;">
+            <div style="font-size:40px;opacity:.2;margin-bottom:16px;">🎮</div>
+            <div style="font-size:15px;font-weight:700;color:var(--t2);">@(_tab==1 ? "Нет живых матчей" : _tab==0 ? "Нет запланированных матчей" : "Нет результатов")</div>
+            @if (_tab==0){ <div style="font-size:12px;color:var(--t4);margin-top:8px;">Следующие матчи появятся здесь за 24 часа до начала</div> }
+        </div>
+    }
+    else
+    {
+        @foreach (var m in matches)
+        {
+            <MatchCard Match="m" IsLive="@(m.Status==MatchStatus.Live)" />
+        }
+    }
+}
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private List<Match> _upcoming=[], _live=[], _recent=[];
+    private List<Tournament> _tournaments=[];
+    private int _tab, _tournFilter;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _live     = await MatchService.GetLiveAsync();
+        _upcoming = await MatchService.GetUpcomingAsync(20);
+        _recent   = await MatchService.GetRecentAsync(30);
+        var all = await TournamentService.GetAllAsync();
+        _tournaments = all.Where(t => _upcoming.Any(m=>m.TournamentId==t.Id) || _recent.Any(m=>m.TournamentId==t.Id) || _live.Any(m=>m.TournamentId==t.Id)).ToList();
+        _loading = false;
+        // Auto-switch to results if no upcoming
+        if (!_upcoming.Any() && !_live.Any() && _recent.Any()) _tab = 2;
+    }
+
+    private string FBtn(int id) =>
+        $"padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:1px;font-family:var(--font-display);text-transform:uppercase;" +
+        $"border:1px solid {(_tournFilter==id?"var(--accent)":"var(--border2)")};" +
+        $"background:{(_tournFilter==id?"var(--accent-a)":"transparent")};" +
+        $"color:{(_tournFilter==id?"var(--accent)":"var(--t3)")};cursor:pointer;transition:all .2s;";
+}

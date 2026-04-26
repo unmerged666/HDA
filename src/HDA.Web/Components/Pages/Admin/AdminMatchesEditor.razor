@@ -1,0 +1,144 @@
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:var(--t1);font-family:var(--font-display);">⚔ Матчи (@_matches.Count)</div>
+    <button class="adm-btn adm-btn-primary" @onclick="NewMatch">+ Создать матч</button>
+</div>
+
+@if (_e != null)
+{
+    <div class="adm-card" style="padding:22px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
+            @(_e.Id==0?"Новый матч":"Редактировать матч #"+_e.Id)
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr;">
+            <div>
+                <label class="adm-label">Команда A</label>
+                <select class="adm-field" @bind="_e.TeamAId">
+                    @foreach (var t in _teams) { <option value="@t.Id">@t.Name</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Команда B</label>
+                <select class="adm-field" @bind="_e.TeamBId">
+                    @foreach (var t in _teams) { <option value="@t.Id">@t.Name</option> }
+                </select>
+            </div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div>
+                <label class="adm-label">Турнир</label>
+                <select class="adm-field" @bind="_e.TournamentId">
+                    @foreach (var t in _tournaments) { <option value="@t.Id">@t.Name</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Формат</label>
+                <select class="adm-field" @bind="_e.Format">
+                    @foreach (MatchFormat f in Enum.GetValues<MatchFormat>()) { <option value="@f">@f</option> }
+                </select>
+            </div>
+            <div>
+                <label class="adm-label">Статус</label>
+                <select class="adm-field" @bind="_e.Status">
+                    @foreach (MatchStatus s in Enum.GetValues<MatchStatus>()) { <option value="@s">@s</option> }
+                </select>
+            </div>
+        </div>
+        <div class="adm-row" style="grid-template-columns:1fr 1fr 1fr;">
+            <div><label class="adm-label">Дата/время</label><input class="adm-field" type="datetime-local" value="@_e.ScheduledAt.ToString("yyyy-MM-ddTHH:mm")" @onchange="@(e=>_e.ScheduledAt=DateTime.SpecifyKind(DateTime.Parse(e.Value?.ToString()??DateTime.UtcNow.ToString()),DateTimeKind.Utc))" /></div>
+            <div><label class="adm-label">Счёт A</label><input class="adm-field" type="number" @bind="_e.TeamAScore" /></div>
+            <div><label class="adm-label">Счёт B</label><input class="adm-field" type="number" @bind="_e.TeamBScore" /></div>
+        </div>
+        @if (_e.Status == MatchStatus.Completed)
+        {
+            <div class="adm-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">
+                <div>
+                    <label class="adm-label">Победитель</label>
+                    <select class="adm-field" @bind="_e.WinnerId">
+                        <option value="">— Нет —</option>
+                        @foreach (var t in _teams.Where(t=>t.Id==_e.TeamAId||t.Id==_e.TeamBId))
+                        { <option value="@t.Id">@t.Name</option> }
+                    </select>
+                </div>
+                <div><label class="adm-label">Twitch URL</label><input class="adm-field" @bind="_e.TwitchUrl" /></div>
+            </div>
+        }
+        <div style="display:flex;gap:8px;">
+            <button class="adm-btn adm-btn-primary" @onclick="Save" disabled="@_saving">@(_saving?"Сохранение...":"💾 Сохранить")</button>
+            <button class="adm-btn adm-btn-ghost" @onclick="@(()=>_e=null)">Отмена</button>
+        </div>
+    </div>
+}
+
+<div class="adm-card">
+    <table class="hda-table">
+        <thead><tr><th>Матч</th><th>Турнир</th><th>Формат</th><th>Статус</th><th>Дата</th><th>Счёт</th><th>Действия</th></tr></thead>
+        <tbody>
+            @if (_loading) { @for(int i=0;i<6;i++){<tr><td colspan="7"><MudSkeleton Height="30px"/></td></tr>} }
+            else @foreach (var m in _matches.OrderByDescending(m=>m.ScheduledAt).Take(50))
+            {
+                var ta = _teams.FirstOrDefault(t=>t.Id==m.TeamAId);
+                var tb = _teams.FirstOrDefault(t=>t.Id==m.TeamBId);
+                <tr>
+                    <td>
+                        <div style="font-weight:600;font-size:12px;">@(ta?.Tag??"?") vs @(tb?.Tag??"?")</div>
+                        <div style="font-size:10px;color:var(--t4);">#@m.Id</div>
+                    </td>
+                    <td style="font-size:11px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@(_tournaments.FirstOrDefault(t=>t.Id==m.TournamentId)?.Name ?? "—")</td>
+                    <td style="font-size:11px;color:var(--t2);">@m.Format</td>
+                    <td><span style="@StatusStyle(m.Status)">@StatusLbl(m.Status)</span></td>
+                    <td style="font-size:11px;color:var(--t4);font-family:var(--font-mono);">@m.ScheduledAt.ToString("dd.MM.yy HH:mm")</td>
+                    <td style="font-family:var(--font-mono);font-weight:700;">
+                        @if(m.TeamAScore.HasValue){<span style="color:@(m.WinnerId==m.TeamAId?"var(--green)":"var(--t2)")">@m.TeamAScore</span><span style="color:var(--t4)"> – </span><span style="color:@(m.WinnerId==m.TeamBId?"var(--green)":"var(--t2)")">@m.TeamBScore</span>}
+                        else{<span style="color:var(--t4);">—</span>}
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:5px;">
+                            <button class="adm-btn adm-btn-ghost" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Edit(m))">✏</button>
+                            <button class="adm-btn adm-btn-danger" style="padding:5px 10px;font-size:9px;" @onclick="@(()=>Delete(m))">✕</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private List<Match> _matches = []; private List<Team> _teams = []; private List<Tournament> _tournaments = [];
+    private Match? _e; private bool _loading=true, _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _matches = await Db.Matches.ToListAsync();
+        _teams = await Db.Teams.OrderBy(t=>t.WorldRank).ToListAsync();
+        _tournaments = await Db.Tournaments.ToListAsync();
+        _loading=false;
+    }
+
+    void NewMatch() => _e = new Match { ScheduledAt=DateTime.UtcNow, Status=MatchStatus.Scheduled, Format=MatchFormat.Bo3, CreatedAt=DateTime.UtcNow, UpdatedAt=DateTime.UtcNow,
+        TeamAId=_teams.FirstOrDefault()?.Id??0, TeamBId=_teams.Skip(1).FirstOrDefault()?.Id??0, TournamentId=_tournaments.FirstOrDefault()?.Id??0 };
+
+    void Edit(Match m) => _e = new Match { Id=m.Id, TournamentId=m.TournamentId, TeamAId=m.TeamAId, TeamBId=m.TeamBId, Format=m.Format, Status=m.Status, ScheduledAt=m.ScheduledAt, TeamAScore=m.TeamAScore, TeamBScore=m.TeamBScore, WinnerId=m.WinnerId, TwitchUrl=m.TwitchUrl, YoutubeUrl=m.YoutubeUrl, CreatedAt=m.CreatedAt, UpdatedAt=DateTime.UtcNow };
+
+    async Task Save()
+    {
+        if (_e==null) return; _saving=true; _e.UpdatedAt=DateTime.UtcNow;
+        if (_e.Id==0) { Db.Matches.Add(_e); }
+        else { var x=await Db.Matches.FindAsync(_e.Id); if(x!=null){x.TournamentId=_e.TournamentId;x.TeamAId=_e.TeamAId;x.TeamBId=_e.TeamBId;x.Format=_e.Format;x.Status=_e.Status;x.ScheduledAt=_e.ScheduledAt;x.TeamAScore=_e.TeamAScore;x.TeamBScore=_e.TeamBScore;x.WinnerId=_e.WinnerId;x.TwitchUrl=_e.TwitchUrl;x.UpdatedAt=DateTime.UtcNow;} }
+        await Db.SaveChangesAsync();
+        _matches=await Db.Matches.ToListAsync(); _e=null; _saving=false;
+        Snackbar.Add("Матч сохранён ✓", Severity.Success);
+    }
+
+    async Task Delete(Match m) { Db.Matches.Remove(m); _matches.Remove(m); await Db.SaveChangesAsync(); Snackbar.Add("Удалено", Severity.Warning); }
+    string StatusLbl(MatchStatus s) => s switch { MatchStatus.Live=>"Live", MatchStatus.Completed=>"Завершён", MatchStatus.Scheduled=>"Запланирован", _=>"?" };
+    string StatusStyle(MatchStatus s) => s switch { MatchStatus.Live=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(232,64,87,.12);color:var(--accent);", MatchStatus.Completed=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(22,199,132,.12);color:var(--green);", _=>"font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--t3);" };
+}

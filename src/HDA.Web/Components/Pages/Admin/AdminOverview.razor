@@ -1,0 +1,54 @@
+@using HDA.Web.Components.Pages.Admin
+@using MudBlazor
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+    <!-- Quick actions -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t3);margin-bottom:16px;font-family:var(--font-display);">Быстрые действия</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            @foreach (var (lbl, tab, clr) in new[]{
+                ("Добавить команду",1,"var(--gold)"),
+                ("Создать матч",2,"var(--accent)"),
+                ("Новый турнир",3,"var(--purple)"),
+                ("Написать новость",4,"var(--green)"),
+                ("Добавить игрока",5,"#FB923C"),
+                ("Просмотр логов",7,"var(--blue)"),
+                ("SQL Консоль",8,"var(--purple)"),
+            })
+            {
+                var t = tab;
+                <button @onclick="@(()=>OnNavigate.InvokeAsync(t))"
+                        style="@($"padding:12px;border-radius:8px;font-size:11px;font-weight:700;font-family:var(--font-display);letter-spacing:.5px;border:1px solid {clr}22;background:{clr}11;color:{clr};cursor:pointer;transition:all .2s;text-align:left;")">
+                    @lbl
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Status summary -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t3);margin-bottom:16px;font-family:var(--font-display);">Статус системы</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            @foreach (var (lbl, val, clr) in new[]{
+                ("Пользователей", Stats.Users.ToString(), "var(--blue)"),
+                ("Команд в рейтинге", Stats.Teams.ToString(), "var(--gold)"),
+                ("Всего матчей", Stats.Matches.ToString(), "var(--accent)"),
+                ("Турниров", Stats.Tournaments.ToString(), "var(--purple)"),
+                ("Опубликовано новостей", Stats.News.ToString(), "var(--green)"),
+                ("Про-игроков", Stats.ProPlayers.ToString(), "#FB923C"),
+            })
+            {
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);border-radius:6px;">
+                    <span style="font-size:12px;color:var(--t2);">@lbl</span>
+                    <span style="font-size:14px;font-weight:700;color:@clr;font-family:var(--font-mono);">@val</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    public record DashStats { public int Users, Teams, Matches, Tournaments, News, ProPlayers; }
+    [Parameter] public DashStats Stats { get; set; } = new();
+    [Parameter] public EventCallback<int> OnNavigate { get; set; }
+}

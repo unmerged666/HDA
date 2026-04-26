@@ -1,0 +1,110 @@
+@page "/tournaments"
+@inject ITournamentService TournamentService
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Турниры — HDA.gg</PageTitle>
+
+<div class="page-header">
+    <div class="page-title">Турниры и события</div>
+    <div class="page-sub">Официальные турниры Dota 2 Pro Circuit и открытые события</div>
+</div>
+
+<MudTabs Elevation="0" PanelClass="pa-0" Style="border-bottom:1px solid var(--border);" @bind-ActivePanelIndex="_tab">
+    <MudTabPanel Text="ВСЕ" />
+    <MudTabPanel Text="АКТИВНЫЕ" BadgeData="@(_ongoing.Count>0?_ongoing.Count:null)" BadgeColor="Color.Warning" />
+    <MudTabPanel Text="ПРЕДСТОЯЩИЕ" BadgeData="@(_upcoming.Count>0?_upcoming.Count:null)" BadgeColor="Color.Info" />
+    <MudTabPanel Text="ЗАВЕРШЁННЫЕ" />
+</MudTabs>
+
+@if (_loading)
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:20px;">
+        @for (int i = 0; i < 6; i++) { <div style="border-radius:12px;overflow:hidden;"><MudSkeleton Height="160px" /></div> }
+    </div>
+}
+else
+{
+    var list = _tab switch { 1=>_ongoing, 2=>_upcoming, 3=>_completed, _=>_all };
+    @if (!list.Any())
+    {
+        <div style="padding:60px;text-align:center;">
+            <div style="font-size:40px;opacity:.2;margin-bottom:16px;">🏆</div>
+            <div style="font-size:15px;font-weight:700;color:var(--t2);">Турниры не найдены</div>
+        </div>
+    }
+    else
+    {
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:20px;">
+            @foreach (var t in list)
+            {
+                <div class="tourn-card hda-fadein" @onclick="@(()=>Nav.NavigateTo($"/tournaments/{t.Id}"))">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;">
+                        <div style="width:48px;height:48px;border-radius:10px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--gold);font-family:var(--font-display);">
+                            @if (!string.IsNullOrEmpty(t.LogoUrl)) { <img src="@t.LogoUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                            else { @(t.Name.Length>0?t.Name[0].ToString():"T") }
+                        </div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:15px;font-weight:700;color:var(--t1);font-family:var(--font-display);line-height:1.3;">@t.Name</div>
+                            <div style="font-size:11px;color:var(--t3);margin-top:3px;">@t.Organizer · @t.Region</div>
+                        </div>
+                        <span style="font-size:8px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:var(--font-display);letter-spacing:1px;text-transform:uppercase;flex-shrink:0;@StatusStyle(t.Status)">@StatusLbl(t.Status)</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(t.Description))
+                    { <div style="font-size:11px;color:var(--t3);line-height:1.6;margin-bottom:14px;">@(t.Description.Length>120?t.Description[..120]+"...":t.Description)</div> }
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+                        <div>
+                            @if (t.PrizePool > 0)
+                            { <div class="prize">$@FormatPrize(t.PrizePool)</div> }
+                            <div style="font-size:10px;color:var(--t4);margin-top:2px;font-family:var(--font-mono);">
+                                @t.StartDate.ToString("dd MMM") — @t.EndDate.ToString("dd MMM yyyy")
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:4px;">
+                            <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;background:var(--gold-a);color:var(--gold);font-family:var(--font-display);letter-spacing:1px;text-transform:uppercase;">@TierLbl(t.Tier)</span>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(t.Location))
+                    { <div style="margin-top:10px;font-size:10px;color:var(--t4);display:flex;align-items:center;gap:4px;">📍 @t.Location</div> }
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = null!;
+    private List<Tournament> _all=[], _ongoing=[], _upcoming=[], _completed=[];
+    private int _tab;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all      = await TournamentService.GetAllAsync();
+        _ongoing  = _all.Where(t=>t.Status==TournamentStatus.Ongoing).OrderByDescending(t=>t.StartDate).ToList();
+        _upcoming = _all.Where(t=>t.Status==TournamentStatus.Upcoming).OrderBy(t=>t.StartDate).ToList();
+        _completed= _all.Where(t=>t.Status==TournamentStatus.Completed).OrderByDescending(t=>t.EndDate).ToList();
+        _loading = false;
+        // Auto-select best tab
+        if (_ongoing.Any()) _tab = 1;
+        else if (_upcoming.Any()) _tab = 2;
+    }
+
+    private string FormatPrize(decimal p) =>
+        p >= 1_000_000 ? $"{p/1_000_000:0.##}M" : p >= 1_000 ? $"{p/1_000:0.##}K" : p.ToString();
+
+    private string TierLbl(TournamentTier t) => t switch
+    { TournamentTier.S=>"S-Tier", TournamentTier.A=>"A-Tier", TournamentTier.B=>"B-Tier", _=>"Квалификация" };
+
+    private string StatusLbl(TournamentStatus s) => s switch
+    { TournamentStatus.Ongoing=>"АКТИВЕН", TournamentStatus.Upcoming=>"СКОРО", TournamentStatus.Completed=>"ЗАВЕРШЁН", _=>"?" };
+
+    private string StatusStyle(TournamentStatus s) => s switch
+    {
+        TournamentStatus.Ongoing  => "background:rgba(22,199,132,.12);color:var(--green);",
+        TournamentStatus.Upcoming => "background:rgba(75,158,255,.12);color:var(--blue);",
+        _                         => "background:rgba(255,255,255,.06);color:var(--t3);"
+    };
+}

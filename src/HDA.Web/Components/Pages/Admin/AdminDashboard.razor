@@ -1,0 +1,168 @@
+@page "/admin"
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@using HDA.Domain.Entities
+@using HDA.Domain.Enums
+@using HDA.Infrastructure.Data
+@using HDA.Infrastructure.Services
+@using Microsoft.EntityFrameworkCore
+@using MudBlazor
+
+<PageTitle>Admin — HDA.gg</PageTitle>
+@if (!AppState.IsAdmin) { Nav.NavigateTo("/"); return; }
+
+<style>
+/* ── ADMIN PANEL STYLES ─────────────────────────────────────────── */
+.adm-card { background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .22s cubic-bezier(.4,0,.2,1); }
+.adm-card:hover { border-color:rgba(232,64,87,.35);box-shadow:0 4px 20px rgba(232,64,87,.08); }
+
+/* Tabs */
+.adm-tab {
+  padding:14px 20px;font-size:11px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;font-family:var(--font-display);
+  border:none;cursor:pointer;transition:all .18s;white-space:nowrap;
+  position:relative;background:transparent;
+}
+.adm-tab.active { color:#E84057;background:rgba(232,64,87,.06); }
+.adm-tab.active::after {
+  content:'';position:absolute;bottom:0;left:0;right:0;
+  height:2.5px;background:linear-gradient(90deg,#E84057,#FF6B7A);
+  border-radius:2px 2px 0 0;
+}
+.adm-tab:not(.active) { color:var(--t3); }
+.adm-tab:hover:not(.active) { color:var(--t1);background:rgba(255,255,255,.05); }
+
+/* Fields */
+.adm-field {
+  background:var(--bg3);border:1.5px solid var(--border2);border-radius:8px;
+  padding:10px 14px;font-size:13px;color:var(--t1);
+  font-family:var(--font-body);outline:none;width:100%;
+  box-sizing:border-box;transition:border-color .18s,box-shadow .18s;
+}
+.adm-field:focus { border-color:#E84057;box-shadow:0 0 0 3px rgba(232,64,87,.12); }
+
+.adm-label {
+  font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--t3);margin-bottom:6px;font-family:var(--font-display);display:block;
+}
+.adm-row { display:grid;gap:14px;margin-bottom:16px; }
+
+/* Buttons */
+.adm-btn {
+  padding:10px 22px;border-radius:8px;font-size:11px;font-weight:700;
+  letter-spacing:1px;font-family:var(--font-display);text-transform:uppercase;
+  cursor:pointer;transition:all .18s cubic-bezier(.4,0,.2,1);
+  border:none;display:inline-flex;align-items:center;gap:7px;
+}
+.adm-btn-primary { background:linear-gradient(135deg,#E84057,#C73348);color:#fff;box-shadow:0 2px 10px rgba(232,64,87,.3); }
+.adm-btn-primary:hover { transform:translateY(-2px);box-shadow:0 6px 20px rgba(232,64,87,.4); }
+.adm-btn-primary:active { transform:translateY(0); }
+.adm-btn-ghost { background:transparent;color:var(--t2);border:1.5px solid var(--border2); }
+.adm-btn-ghost:hover { border-color:var(--t2);color:var(--t1);background:rgba(255,255,255,.04); }
+.adm-btn-danger { background:rgba(232,64,87,.08);color:#E84057;border:1.5px solid rgba(232,64,87,.25); }
+.adm-btn-danger:hover { background:#E84057;color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(232,64,87,.3); }
+.adm-btn-success { background:rgba(22,199,132,.08);color:var(--green);border:1.5px solid rgba(22,199,132,.25); }
+.adm-btn-success:hover { background:var(--green);color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(22,199,132,.3); }
+
+/* Tables */
+.hda-table { width:100%;border-collapse:collapse;font-size:13px; }
+.hda-table th { padding:12px 16px;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t4);font-family:var(--font-display);border-bottom:1px solid var(--border);text-align:left;background:var(--bg3); }
+.hda-table td { padding:13px 16px;border-bottom:1px solid var(--border);vertical-align:middle; }
+.hda-table tr:last-child td { border-bottom:none; }
+.hda-table tr:hover td { background:rgba(255,255,255,.02); }
+
+/* Small buttons in tables */
+.btn-sm {
+  padding:5px 12px;border-radius:6px;font-size:10px;font-weight:700;
+  border:1.5px solid var(--border2);color:var(--t2);background:transparent;
+  cursor:pointer;transition:all .15s;font-family:var(--font-display);
+  letter-spacing:.5px;text-transform:uppercase;
+}
+.btn-sm:hover { border-color:var(--t2);color:var(--t1);background:rgba(255,255,255,.05);transform:translateY(-1px); }
+.btn-active { border-color:var(--accent)!important;color:var(--accent)!important;background:rgba(232,64,87,.08)!important; }
+
+/* Console */
+.console-line { font-family:var(--font-mono);font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);line-height:1.5; }
+.console-line.err { color:#FF6B7A; }
+.console-line.ok { color:#16C784; }
+.console-line.warn { color:#FFB800; }
+.console-line.info { color:#4B9EFF; }
+
+/* Stats bar hover */
+.adm-stat-cell { padding:16px 20px;border-right:1px solid var(--border);cursor:pointer;transition:background .18s; }
+.adm-stat-cell:hover { background:rgba(255,255,255,.03); }
+</style>
+
+<!-- Header -->
+<div style="background:linear-gradient(135deg,rgba(232,64,87,.1) 0%,rgba(139,92,246,.06) 50%,transparent 100%);border-bottom:1px solid var(--border);padding:20px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:44px;height:44px;border-radius:10px;background:rgba(232,64,87,.15);border:1px solid rgba(232,64,87,.3);display:flex;align-items:center;justify-content:center;font-size:20px;">⚙</div>
+        <div>
+            <div style="font-size:22px;font-weight:800;color:var(--t1);font-family:var(--font-display);">Панель администратора</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:1px;">HDA.gg · @AppState.CurrentUser?.Email</div>
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <a href="/" class="adm-btn adm-btn-ghost" style="text-decoration:none;font-size:10px;">← На сайт</a>
+        <button class="adm-btn adm-btn-primary" @onclick="@(()=>_tab=5)">📰 Новая статья</button>
+    </div>
+</div>
+
+<!-- Stats bar -->
+<div style="display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--border);">
+    @{ var stats = new[]{("👥",_u,"Юзеры","var(--blue)"),("🏆",_t,"Команды","var(--gold)"),("⚔",_m,"Матчи","var(--accent)"),("🎯",_to,"Турниры","var(--purple)"),("📰",_n,"Новости","var(--green)"),("🦸",_p,"Игроки","#FB923C)")}; }
+    @foreach (var (ico,cnt,lbl,clr) in stats)
+    {
+        <div class="adm-stat-cell" @onclick="@(()=>_tab=Array.IndexOf(stats,(ico,cnt,lbl,clr))+1)" style="@(Array.IndexOf(stats,(ico,cnt,lbl,clr))==5?"":"border-right:1px solid var(--border);")">
+            <div style="font-size:20px;line-height:1;margin-bottom:6px;">@ico</div>
+            <div style="font-size:26px;font-weight:700;color:@clr;font-family:var(--font-mono);line-height:1;">@cnt</div>
+            <div style="font-size:10px;color:var(--t4);letter-spacing:1.5px;text-transform:uppercase;font-family:var(--font-display);margin-top:4px;">@lbl</div>
+        </div>
+    }
+</div>
+
+<!-- Tabs -->
+<div style="display:flex;border-bottom:1px solid var(--border);background:var(--bg2);overflow-x:auto;padding:0 8px;">
+    @foreach (var (i,ico,lbl) in new[]{(0,"📊","Обзор"),(1,"👥","Юзеры"),(2,"🏆","Команды"),(3,"⚔","Матчи"),(4,"🎯","Турниры"),(5,"📰","Новости"),(6,"🦸","Игроки"),(7,"💻","Консоль"),(8,"📋","Логи"),(9,"🎮","Заявки")})
+    {
+        <button class="adm-tab @(_tab==i?"active":"")" @onclick="@(()=>_tab=i)" style="position:relative;">
+            @ico <span style="margin-left:4px;">@lbl</span>
+            @if (i==9 && _pendingApps>0)
+            { <span style="position:absolute;top:6px;right:4px;background:#E84057;color:#fff;border-radius:8px;padding:1px 5px;font-size:8px;line-height:1.4;">@_pendingApps</span> }
+        </button>
+    }
+</div>
+
+<!-- Content -->
+<div style="padding:24px 28px;">
+    @if (_tab==0) { <AdminOverviewPanel Stats="@(_s)" OnGo="@((t)=>_tab=t)" /> }
+    @if (_tab==1) { <AdminUsersPanel /> }
+    @if (_tab==2) { <AdminTeamsEditor /> }
+    @if (_tab==3) { <AdminMatchesEditor /> }
+    @if (_tab==4) { <AdminTournamentsEditor /> }
+    @if (_tab==5) { <AdminNewsPanel /> }
+    @if (_tab==6) { <AdminPlayersEditor /> }
+    @if (_tab==7) { <AdminConsole /> }
+    @if (_tab==8) { <AdminLogsPanel /> }
+    @if (_tab==9) { <AdminProApplicationsPanel /> }
+</div>
+
+@code {
+    [Inject] HdaDbContext Db { get; set; } = null!;
+    private int _tab, _u, _t, _m, _to, _n, _p, _pendingApps;
+    private AdminOverviewPanel.S _s = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _pendingApps = await Db.ProPlayers.CountAsync(p => p.Status == HDA.Domain.Enums.ProPlayerStatus.PendingApproval); } catch { }
+        if (!AppState.IsAdmin) return;
+        _u  = await Db.Users.CountAsync();
+        _t  = await Db.Teams.CountAsync();
+        _m  = await Db.Matches.CountAsync();
+        _to = await Db.Tournaments.CountAsync();
+        _n  = await Db.NewsArticles.CountAsync();
+        _p  = await Db.ProPlayers.CountAsync();
+        _s  = new() { U=_u, T=_t, M=_m, To=_to, N=_n, P=_p };
+    }
+}

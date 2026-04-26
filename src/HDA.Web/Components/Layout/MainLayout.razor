@@ -1,0 +1,316 @@
+@inherits LayoutComponentBase
+@inject AppState AppState
+@inject ThemeService ThemeService
+@inject NavigationManager Nav
+@inject ISearchService SearchService
+@implements IDisposable
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<!-- THEME INJECTION - this <style> re-renders when ThemeService.IsDark changes -->
+@if (ThemeService.IsDark)
+{
+    <style>
+        :root, html, body {
+            --bg:#060A12;--bg2:#0A1020;--bg3:#0F1829;--bg4:#162035;--bg5:#1C2A42;
+            --border:#1A2A3F;--border2:#243650;
+            --accent:#E84057;--accent2:#FF6B7A;--accent-a:rgba(232,64,87,.12);--accent-b:rgba(232,64,87,.25);
+            --gold:#FFB800;--gold-a:rgba(255,184,0,.12);--green:#16C784;--green-a:rgba(22,199,132,.12);
+            --blue:#4B9EFF;--purple:#8B5CF6;
+            --t1:#EEF2FF;--t2:#8899BB;--t3:#4A5A7A;--t4:#2A3A55;
+            --footer-bg:#040810;--card-shine:linear-gradient(135deg,rgba(255,255,255,.04) 0%,transparent 50%);
+        }
+        html,body{background-color:#060A12 !important;color:#EEF2FF !important;}
+        .mud-appbar{background:rgba(6,10,18,.96) !important;}
+        .mud-drawer{background:#0A1020 !important;}
+    </style>
+}
+else
+{
+    <style>
+        :root, html, body {
+            --bg:#F2F5FA;--bg2:#FFFFFF;--bg3:#F8FAFD;--bg4:#EEF2F7;--bg5:#E4E9F2;
+            --border:#E0E6EF;--border2:#CDD5E2;
+            --accent:#E84057;--accent2:#FF6B7A;--accent-a:rgba(232,64,87,.08);--accent-b:rgba(232,64,87,.2);
+            --gold:#D4900A;--gold-a:rgba(212,144,10,.1);--green:#0A9060;--green-a:rgba(10,144,96,.1);
+            --blue:#2563EB;--purple:#7C3AED;
+            --t1:#0D1526;--t2:#3A4A65;--t3:#6B7A99;--t4:#9AA5BC;
+            --footer-bg:#E4E9F2;--card-shine:linear-gradient(135deg,rgba(255,255,255,.5) 0%,transparent 50%);
+        }
+        html,body{background-color:#F2F5FA !important;color:#0D1526 !important;}
+        .mud-layout,.mud-main-content{background:#F2F5FA !important;color:#0D1526 !important;}
+        .mud-appbar{background:rgba(242,245,250,.97) !important;border-bottom-color:#E0E6EF !important;}
+        .mud-drawer{background:#FFFFFF !important;}
+        .hda-sidebar{background:#F2F5FA !important;}
+        .landing-hero{background:#F2F5FA !important;}
+        .hero-bg-glow{opacity:.4;}
+        .hero-bg-grid{opacity:.5;}
+        .hda-console{background:#F8FAFD !important;color:#0D1526 !important;}
+        .mud-table-head .mud-table-cell{background:#FFFFFF !important;}
+        .match-row:hover{background:rgba(232,64,87,.04) !important;}
+        .rank-row:hover{background:rgba(232,64,87,.04) !important;}
+        .news-item:hover{background:rgba(232,64,87,.04) !important;}
+    </style>
+}
+
+<MudLayout>
+    <MudAppBar Elevation="0" Dense="true" Style="height:56px;">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       Style="@($"color:{(ThemeService.IsDark?"#475569":"#64748B")};")"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+        <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:8px;margin-right:24px;transition:opacity .2s;" class="hda-logo-link">
+            <img src="/images/logo.png" alt="HDA" style="width:28px;height:28px;border-radius:6px;flex-shrink:0;transition:transform .2s;" />
+            <div style="display:flex;align-items:baseline;gap:1px;">
+                <span style="font-size:18px;font-weight:800;letter-spacing:2px;color:#E84057;font-family:var(--font-display);">HDA</span>
+                <span style="font-size:11px;color:var(--t3);font-weight:500;font-family:var(--font-display);">.gg</span>
+            </div>
+        </a>
+        <MudHidden Breakpoint="Breakpoint.MdAndDown">
+            <nav class="appbar-nav" style="display:flex;gap:2px;align-items:center;">
+                @foreach (var item in _nav)
+                { <a href="@item.H" style="@NS(item.H)">@item.L</a> }
+            </nav>
+        </MudHidden>
+        <MudSpacer />
+
+        <!-- Search -->
+        <div style="position:relative;margin-right:10px;">
+            <div class="hda-search-box">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input value="@_q" @oninput="OnSearch" placeholder="Поиск..."
+                       style="background:transparent;border:none;outline:none;padding:7px 8px;font-size:12px;color:var(--t1);font-family:var(--font);width:100%;" />
+                @if (!string.IsNullOrEmpty(_q))
+                { <button @onclick="ClearSearch" style="background:none;border:none;color:var(--t3);cursor:pointer;padding:0;font-size:14px;line-height:1;">✕</button> }
+            </div>
+            @if (_searchOpen && _results.Any())
+            {
+                <div style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,0.3);z-index:9999;overflow:hidden;min-width:300px;">
+                    @foreach (var r in _results)
+                    {
+                        <a href="@r.Url" style="display:flex;align-items:center;gap:10px;padding:10px 14px;text-decoration:none;transition:background 0.1s;border-bottom:1px solid var(--border);" @onclick="ClearSearch">
+                            <div style="width:32px;height:32px;border-radius:6px;background:var(--bg4);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#E84057;position:relative;">
+                                @if (!string.IsNullOrEmpty(r.ImageUrl)) { <img src="@r.ImageUrl" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;" /> }
+                                else { <span>@r.Title[0]</span> }
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@r.Title</div>
+                                @if (r.Subtitle != null) { <div style="font-size:10px;color:var(--t3);">@r.Subtitle</div> }
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Live -->
+        <a href="/matches" style="display:flex;align-items:center;gap:5px;background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.25);border-radius:5px;padding:5px 10px;text-decoration:none;margin-right:10px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#E84057;animation:pulse-dot 1.2s ease-in-out infinite;flex-shrink:0;display:inline-block;"></span>
+            <span style="font-size:10px;font-weight:800;color:#E84057;letter-spacing:1px;">LIVE</span>
+        </a>
+
+        <!-- Theme toggle -->
+        <button @onclick="Toggle"
+                style="@($"width:32px;height:32px;border-radius:6px;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;margin-right:10px;color:var(--t2);transition:all 0.15s;")"
+                title="@(ThemeService.IsDark?"Светлая тема":"Тёмная тема")">
+            @if (ThemeService.IsDark)
+            {
+                <!-- Sun icon -->
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            }
+            else
+            {
+                <!-- Moon icon -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            }
+        </button>
+
+        @{ var _cu = AppState.CurrentUser; }
+        @if (AppState.IsAuthenticated && _cu != null)
+        {
+            @if (AppState.IsAdmin)
+            { <a href="/admin" style="font-size:10px;font-weight:800;background:#E84057;color:#fff;padding:3px 9px;border-radius:4px;letter-spacing:1px;margin-right:10px;text-decoration:none;font-family:var(--font-display);">ADMIN</a> }
+            <MudMenu Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <ActivatorContent>
+                    <div style="width:32px;height:32px;border-radius:7px;background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.3);overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#E84057;position:relative;transition:all .2s;">
+                        @if (!string.IsNullOrEmpty(_cu.AvatarUrl))
+                        { <img src="@_cu.AvatarUrl" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" /> }
+                        else { @(_cu.Username.Length > 0 ? _cu.Username[0].ToString().ToUpper() : "U") }
+                    </div>
+                </ActivatorContent>
+                <ChildContent>
+                    <div style="padding:10px 14px 8px;border-bottom:1px solid var(--border);margin-bottom:4px;">
+                        <div style="font-size:13px;font-weight:700;color:var(--t1);font-family:var(--font-display);">@_cu.Username</div>
+                        <div style="font-size:11px;color:var(--t3);">@_cu.Email</div>
+                    </div>
+                    <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Мой профиль</MudMenuItem>
+                    @if (AppState.IsProPlayer) { <MudMenuItem Href="/pro-profile" Icon="@Icons.Material.Filled.SportsMartialArts">Про-профиль</MudMenuItem> }
+                    @if (AppState.IsAdmin) { <MudMenuItem Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings" IconColor="Color.Error">Панель админа</MudMenuItem> }
+                    <MudDivider Style="margin:4px 0;" />
+                    <MudMenuItem OnClick="Logout" Icon="@Icons.Material.Filled.Logout">Выйти</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        }
+        else
+        {
+            <a href="/login"    style="padding:7px 14px;font-size:11px;font-weight:700;color:var(--t2);border:1px solid var(--border2);border-radius:5px;text-decoration:none;margin-right:8px;text-transform:uppercase;transition:all 0.15s;">Войти</a>
+            <a href="/register" style="padding:7px 14px;font-size:11px;font-weight:800;color:#fff;background:#E84057;border-radius:5px;text-decoration:none;text-transform:uppercase;transition:all 0.15s;">Регистрация</a>
+        }
+    </MudAppBar>
+
+    <!-- Mobile drawer - also themed -->
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Width="240px">
+        <div style="background:var(--bg2);min-height:100%;display:flex;flex-direction:column;overflow:hidden;">
+            <!-- Drawer header -->
+            <div style="padding:16px 18px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg3);">
+                <img src="/images/logo.png" style="width:28px;height:28px;border-radius:6px;flex-shrink:0;" />
+                <div>
+                    <div style="font-size:16px;font-weight:800;letter-spacing:2px;color:#E84057;font-family:var(--font-display);line-height:1;">HDA</div>
+                    <div style="font-size:9px;color:var(--t4);letter-spacing:1px;font-family:var(--font-display);">.gg · Dota 2 Analytics</div>
+                </div>
+                <button @onclick="@(()=>_drawerOpen=false)" style="margin-left:auto;background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;padding:4px;line-height:1;transition:all .2s;border-radius:4px;" title="Закрыть">✕</button>
+            </div>
+
+            <!-- Nav links with stagger animation -->
+            <nav style="padding:12px 0;flex:1;">
+                @{ int idx = 0; }
+                @foreach (var item in _nav)
+                {
+                    var active = Nav.Uri.TrimEnd('/').EndsWith(item.H.TrimEnd('/'));
+                    var delay = idx * 40;
+                    idx++;
+                    <a href="@item.H"
+                       style="@($"display:flex;align-items:center;gap:12px;padding:12px 20px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-family:var(--font-display);color:{(active?"#E84057":"var(--t2)")};background:{(active?"rgba(232,64,87,0.08)":"transparent")};text-decoration:none;transition:all .2s;border-left:3px solid {(active?"#E84057":"transparent")};animation:fadeRight .3s ease {delay}ms both;")"
+                       @onclick="@(() => _drawerOpen=false)">
+                        <span style="@($"width:6px;height:6px;border-radius:50%;background:{(active?"#E84057":"var(--t4)")};flex-shrink:0;transition:all .2s;box-shadow:{(active?"0 0 8px rgba(232,64,87,.6)":"none")};")"></span>
+                        @item.L
+                        @if (active)
+                        { <span style="margin-left:auto;font-size:7px;color:var(--accent);letter-spacing:1px;">●</span> }
+                    </a>
+                }
+            </nav>
+
+            <!-- Divider + theme -->
+            <div style="border-top:1px solid var(--border);padding:14px 18px;background:var(--bg3);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                    <span style="font-size:9px;font-weight:700;color:var(--t3);letter-spacing:2px;text-transform:uppercase;font-family:var(--font-display);">@(ThemeService.IsDark ? "Тёмная тема" : "Светлая тема")</span>
+                    <button @onclick="Toggle"
+                            style="@($"width:40px;height:22px;border-radius:11px;border:none;cursor:pointer;transition:all .3s;background:{(ThemeService.IsDark?"#E84057":"var(--border2)")};position:relative;box-shadow:{(ThemeService.IsDark?"0 0 12px rgba(232,64,87,.4)":"none")};")">
+                        <span style="@($"position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:all .3s cubic-bezier(.34,1.56,.64,1);left:{(ThemeService.IsDark?"21px":"3px")};box-shadow:0 1px 4px rgba(0,0,0,.3);")"></span>
+                    </button>
+                </div>
+                @if (AppState.IsAuthenticated)
+                {
+                    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);">
+                        <div style="width:28px;height:28px;border-radius:7px;background:var(--accent-a);border:1px solid var(--accent-b);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#E84057;font-family:var(--font-display);">
+                            @AppState.CurrentUser!.Username[0].ToString().ToUpper()
+                        </div>
+                        <div>
+                            <div style="font-size:11px;font-weight:700;color:var(--t1);">@AppState.CurrentUser.Username</div>
+                            <div style="font-size:9px;color:var(--t4);">@AppState.CurrentUser.Role</div>
+                        </div>
+                    </div>
+                }
+                @if (AppState.IsAdmin)
+                {
+                    <a href="/admin" @onclick="@(()=>_drawerOpen=false)"
+                       style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#E84057;text-decoration:none;font-family:var(--font-display);transition:all .2s;">
+                        ⚙ Панель администратора
+                    </a>
+                }
+            </div>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent Style="padding-top:56px;">
+        <div class="site-wrapper">
+            <div class="site-body hda-fadein">@Body</div>
+            <footer class="hda-footer">
+                <div>
+                    <div style="font-size:15px;font-weight:900;letter-spacing:2px;color:#E84057;margin-bottom:3px;">HDA.gg</div>
+                    <div style="font-size:11px;color:var(--t4);">High Dota Analytics — профессиональная аналитика Dota 2</div>
+                </div>
+                <div style="font-size:11px;color:var(--t4);text-align:center;">OpenDota API · PandaScore · Steam Web API · Liquipedia</div>
+                <div style="font-size:11px;color:var(--t4);text-align:right;">© @DateTime.Now.Year HDA.gg · Не аффилировано с Valve Corporation</div>
+            </footer>
+        </div>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen, _searchOpen;
+    private string _q = "";
+    private List<SearchResult> _results = [];
+    private System.Timers.Timer? _debounce;
+
+    private record NI(string H, string L);
+    private readonly NI[] _nav = [
+        new("/matches","Матчи"), new("/tournaments","Турниры"), new("/teams","Команды"),
+        new("/players","Игроки"), new("/heroes","Герои"), new("/news","Новости"),
+    ];
+
+    private string NS(string h)
+    {
+        var a = Nav.Uri.TrimEnd('/').EndsWith(h.TrimEnd('/'));
+        return $"display:inline-flex;align-items:center;padding:8px 14px;" +
+               $"font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;" +
+               $"font-family:var(--font-display);text-decoration:none;border-radius:6px;" +
+               $"color:{(a ? "#E84057" : "var(--t2)")};transition:all .2s;" +
+               $"background:{(a ? "rgba(232,64,87,0.1)" : "transparent")};";
+    }
+
+    private async Task Toggle()
+    {
+        await ThemeService.ToggleAsync();
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _q = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        if (_q.Length < 2) { _results = []; _searchOpen = false; return; }
+        _debounce = new System.Timers.Timer(300);
+        _debounce.Elapsed += (_, _) =>
+        {
+            _ = InvokeAsync(async () =>
+            {
+                _results = await SearchService.SearchAsync(_q);
+                _searchOpen = _results.Any();
+                StateHasChanged();
+            });
+            _debounce?.Dispose();
+        };
+        _debounce.AutoReset = false;
+        _debounce.Start();
+    }
+
+    private void ClearSearch() { _q = ""; _results = []; _searchOpen = false; }
+    private string TL(string t) => t switch {"team"=>"Команда","player"=>"Игрок","tournament"=>"Турнир","news"=>"Новость",_=>t};
+    private string TC(string t) => t switch {"team"=>"#3B82F6","player"=>"#E84057","tournament"=>"#FFD700","news"=>"#22C55E",_=>"#94A3B8"};
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+        ThemeService.OnChangeAsync += OnThemeChangedAsync;
+    }
+
+    private async Task OnThemeChangedAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Logout() { AppState.Logout(); Nav.NavigateTo("/"); }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+        ThemeService.OnChangeAsync -= OnThemeChangedAsync;
+        _debounce?.Dispose();
+    }
+}

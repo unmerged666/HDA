@@ -1,0 +1,53 @@
+@page "/register"
+@inject IAuthService AuthService
+@inject AppState AppState
+@inject NavigationManager Nav
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Регистрация — HDA.gg</PageTitle>
+
+<div style="min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse 50% 50% at 50% 40%,rgba(232,64,87,0.06),transparent 70%);padding:24px;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:44px;width:100%;max-width:420px;box-shadow:0 32px 80px rgba(0,0,0,0.5);">
+        <div style="font-size:34px;font-weight:900;color:#E84057;letter-spacing:3px;text-align:center;margin-bottom:28px;text-shadow:0 0 20px rgba(232,64,87,0.3);">HDA</div>
+        <div style="font-size:20px;font-weight:800;color:var(--t1);margin-bottom:4px;">Создать аккаунт</div>
+        <div style="font-size:13px;color:var(--t3);margin-bottom:28px;">Присоединяйтесь к сообществу</div>
+
+        @if (_err != null)
+        { <div style="background:rgba(232,64,87,0.08);border:1px solid rgba(232,64,87,0.25);border-radius:6px;padding:10px 14px;font-size:13px;color:#E84057;margin-bottom:16px;">@_err</div> }
+        @if (_ok)
+        { <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:6px;padding:10px 14px;font-size:13px;color:#22C55E;margin-bottom:16px;">Аккаунт создан! Переходим...</div> }
+
+        <MudTextField @bind-Value="_un" Label="Имя пользователя" Variant="Variant.Outlined"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" Class="mb-3" />
+        <MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined" InputType="InputType.Email"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" Class="mb-3" />
+        <MudTextField @bind-Value="_pwd" Label="Пароль (мин. 6 символов)" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" />
+        <MudTextField @bind-Value="_conf" Label="Подтвердите пароль" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-4" />
+
+        <button class="btn-red" style="width:100%;justify-content:center;padding:12px;" @onclick="DoRegister" disabled="@(_loading || _ok)">
+            @(_loading ? "Создание..." : "Создать аккаунт")
+        </button>
+        <div style="text-align:center;margin-top:20px;font-size:13px;color:var(--t3);">
+            Уже есть аккаунт? <a href="/login" style="color:#E84057;font-weight:700;">Войти</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _un = "", _email = "", _pwd = "", _conf = "";
+    private string? _err;
+    private bool _loading, _ok;
+
+    private async Task DoRegister()
+    {
+        _err = null;
+        if (_pwd != _conf) { _err = "Пароли не совпадают"; return; }
+        if (_pwd.Length < 6) { _err = "Пароль минимум 6 символов"; return; }
+        _loading = true;
+        var (ok, user, err) = await AuthService.RegisterAsync(_un, _email, _pwd);
+        _loading = false;
+        if (ok && user != null) { _ok = true; await InvokeAsync(() => AppState.SetUser(user)); await Task.Delay(800); Nav.NavigateTo("/"); }
+        else _err = err ?? "Ошибка регистрации";
+    }
+}

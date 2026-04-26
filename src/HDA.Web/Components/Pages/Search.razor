@@ -1,0 +1,73 @@
+@page "/search"
+@inject ISearchService SearchService
+@inject NavigationManager Nav
+@using HDA.Infrastructure.Services
+@using MudBlazor
+
+<PageTitle>Поиск — HDA.gg</PageTitle>
+
+<div style="padding:20px 24px 14px;border-bottom:1px solid var(--border);">
+    <div style="font-size:22px;font-weight:900;color:var(--t1);letter-spacing:-0.5px;">Поиск</div>
+    <div style="font-size:12px;color:var(--t3);margin-top:3px;">
+        @if (!string.IsNullOrEmpty(_q)) { <span>Результаты по запросу «@_q»</span> } else { <span>Введите запрос в строку поиска выше</span> }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div style="padding:16px;">
+        @for (int i = 0; i < 6; i++) { <MudSkeleton Height="56px" Style="margin-bottom:6px;" /> }
+    </div>
+}
+else if (!_results.Any())
+{
+    <div style="padding:64px;text-align:center;color:var(--t3);">
+        <div style="font-size:48px;margin-bottom:16px;opacity:0.3;">🔍</div>
+        <div style="font-size:16px;font-weight:700;">Ничего не найдено</div>
+        <div style="font-size:13px;margin-top:8px;">Попробуйте другой запрос</div>
+    </div>
+}
+else
+{
+    @foreach (var group in _results.GroupBy(r => r.Type))
+    {
+        <div class="sec">
+            <div class="sec-title">@TypeLabel(group.Key)</div>
+        </div>
+        @foreach (var r in group)
+        {
+            <a href="@r.Url" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);text-decoration:none;transition:background 0.12s;background:@(_hov==r.Url?"var(--bg2)":"transparent");"
+               @onmouseover="@(e => _hov = r.Url)" @onmouseout="@(e => _hov = "")">
+                <div style="width:40px;height:40px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--red);">
+                    @if (!string.IsNullOrEmpty(r.ImageUrl)) { <img src="@r.ImageUrl" style="width:100%;height:100%;object-fit:contain;" /> }
+                    else { <span>@r.Title[0]</span> }
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:14px;font-weight:700;color:var(--t1);">@r.Title</div>
+                    @if (r.Subtitle != null) { <div style="font-size:11px;color:var(--t3);">@r.Subtitle</div> }
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    private string _q = "";
+    private List<SearchResult> _results = [];
+    private bool _loading;
+    private string _hov = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _q = Q ?? "";
+        if (string.IsNullOrWhiteSpace(_q)) return;
+        _loading = true;
+        _results = await SearchService.SearchAsync(_q, 20);
+        _loading = false;
+    }
+
+    private string TypeLabel(string t) => t switch
+    { "team" => "Команды", "player" => "Игроки", "tournament" => "Турниры", "news" => "Новости", _ => t };
+}
