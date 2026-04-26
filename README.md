@@ -1,204 +1,439 @@
 # HDA.gg — High Dota Analytics
 
-> The most comprehensive Dota 2 esports statistics platform.  
-> Live scores · Match history · Team rankings · Deep analytics
+> Профессиональная аналитическая платформа для отслеживания киберспортивной сцены Dota 2
+
+[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-8.0-512BD4)](https://dotnet.microsoft.com)
+[![Blazor Server](https://img.shields.io/badge/Blazor-Server-7B2D8B)](https://blazor.net)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)](https://postgresql.org)
+[![MudBlazor](https://img.shields.io/badge/MudBlazor-7-594AE2)](https://mudblazor.com)
 
 ---
 
-## Tech Stack
+## Содержание
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | ASP.NET Core 8 + Blazor Server |
-| UI | MudBlazor 7 (Material Design, dark theme) |
-| ORM | Entity Framework Core 8 (Code-First) |
-| Database | PostgreSQL 16 |
-| Container | Docker + Docker Compose |
-| Auth | Custom BCrypt session auth via AppState |
-| External API | OpenDota API (hero sync) |
+- [О проекте](#о-проекте)
+- [Архитектура](#архитектура)
+- [Схема базы данных](#схема-базы-данных)
+- [Требования](#требования)
+- [Установка и запуск](#установка-и-запуск)
+- [Перенос на другой компьютер](#перенос-на-другой-компьютер)
+- [Аккаунты по умолчанию](#аккаунты-по-умолчанию)
+- [Структура проекта](#структура-проекта)
+- [Страницы приложения](#страницы-приложения)
+- [API интеграция](#api-интеграция)
 
 ---
 
-## Project Structure
+## О проекте
+
+**HDA.gg** — веб-платформа для аналитики профессиональной сцены Dota 2. Предоставляет доступ к статистике матчей, рейтингам команд, турнирной информации, профилям игроков и новостной ленте.
+
+**Ключевые возможности:**
+- 🏆 Рейтинг профессиональных команд с детальной статистикой
+- ⚔ Матчи и результаты турниров в реальном времени
+- 🧙 Галерея всех 126+ героев Dota 2 (патч 7.40c) с фильтрацией
+- 👥 Профили профессиональных игроков с KDA-статистикой
+- 📰 Новостная лента профессиональной сцены
+- ⚙ Полная панель администратора с CRUD-операциями
+- 🎮 Система верификации про-игроков
+- 🌗 Поддержка тёмной и светлой темы
+
+---
+
+## Архитектура
+
+Проект построен на принципах **Clean Architecture** и разделён на три независимых слоя:
 
 ```
 HDA/
-├── HDA.sln
-├── Dockerfile
-├── docker-compose.yml
-└── src/
-    ├── HDA.Domain/              # Entities, Enums
-    │   ├── Entities/            # User, Team, ProPlayer, Match, Tournament, Hero...
-    │   └── Enums/               # UserRole, MatchStatus, TournamentTier...
-    ├── HDA.Infrastructure/      # Data access, services
-    │   ├── Data/                # HdaDbContext, DbSeeder
-    │   ├── Repositories/        # Generic repository
-    │   └── Services/            # AuthService, MatchService, TeamService...
-    └── HDA.Web/                 # Blazor Server app
-        ├── Components/
-        │   ├── Layout/          # MainLayout.razor
-        │   ├── Pages/
-        │   │   ├── Admin/       # Dashboard, MatchEditor, TeamEditor
-        │   │   ├── Auth/        # Login, Register, UserProfile, ProProfile
-        │   │   ├── Matches/     # Matches, MatchDetail
-        │   │   ├── Teams/       # Teams, TeamDetail
-        │   │   ├── Players/     # Players, PlayerDetail
-        │   │   ├── Tournaments/ # Tournaments, TournamentDetail
-        │   │   └── News/        # News
-        │   └── Shared/          # MatchCard, TournamentGrid
-        └── wwwroot/
-            ├── css/hda.css
-            └── js/hda.js
+├── src/
+│   ├── HDA.Domain/          # Доменный слой
+│   │   ├── Entities/        # Сущности (User, Team, Match, Hero, ...)
+│   │   └── Enums/           # Перечисления (UserRole, ProPlayerStatus, ...)
+│   │
+│   ├── HDA.Infrastructure/  # Инфраструктурный слой
+│   │   ├── Data/
+│   │   │   ├── HdaDbContext.cs      # EF Core DbContext
+│   │   │   └── DbSeeder.cs          # Начальное заполнение БД
+│   │   └── Services/                # Сервисы (Team, Match, News, OpenDota, ...)
+│   │
+│   └── HDA.Web/             # Слой представления (Blazor Server)
+│       ├── Components/
+│       │   ├── Layout/      # MainLayout, NavMenu
+│       │   └── Pages/       # Страницы приложения
+│       ├── wwwroot/
+│       │   ├── css/hda.css  # Глобальные стили
+│       │   └── js/hda.js    # Вспомогательные скрипты
+│       └── Program.cs       # Точка входа, DI-регистрация
+```
+
+### Диаграмма слоёв
+
+```
+┌─────────────────────────────────────────┐
+│              HDA.Web                    │
+│     (Blazor Server, MudBlazor UI)       │
+└──────────────┬──────────────────────────┘
+               │ зависит от
+┌──────────────▼──────────────────────────┐
+│           HDA.Infrastructure            │
+│   (EF Core, DbContext, Services)        │
+└──────────────┬──────────────────────────┘
+               │ зависит от
+┌──────────────▼──────────────────────────┐
+│             HDA.Domain                  │
+│      (Entities, Enums — без зависимостей)│
+└─────────────────────────────────────────┘
+```
+
+### Технологический стек
+
+| Компонент | Технология |
+|-----------|-----------|
+| Бэкенд | ASP.NET Core 8.0 |
+| UI | Blazor Server |
+| Компоненты | MudBlazor 7 |
+| ORM | Entity Framework Core 8 |
+| База данных | PostgreSQL 16/18 |
+| Аутентификация | BCrypt.Net + Cookie Auth |
+| Внешний API | OpenDota API |
+| Шрифты | Syne, Manrope, DM Mono |
+
+---
+
+## Схема базы данных
+
+```
+Users ──────────────────── ProPlayers
+  │ id (PK)                  │ id (PK)
+  │ username                 │ userId (FK → Users)
+  │ email                    │ nickname
+  │ passwordHash             │ realName
+  │ role (Regular/Pro/Admin) │ country
+  │ isActive                 │ steamId
+  └─────────────────────────►│ teamId (FK → Teams)
+                             │ status (Pending/Approved/Rejected)
+                             │ role (Carry/Mid/Off/Sup4/Sup5)
+
+Teams ──────────────────── Matches
+  │ id (PK)                  │ id (PK)
+  │ name                     │ teamAId (FK → Teams)
+  │ tag                      │ teamBId (FK → Teams)
+  │ logoUrl                  │ scoreA / scoreB
+  │ country                  │ tournamentId (FK → Tournaments)
+  │ worldRank                │ status (Upcoming/Live/Finished)
+  └─────────────────────────►│ format (Bo1/Bo2/Bo3/Bo5)
+
+Tournaments                Heroes
+  │ id (PK)                  │ id (PK)
+  │ name                     │ name (internal key)
+  │ prizePool                │ localizedName
+  │ status                   │ primaryAttribute (str/agi/int/all)
+  │ tier                     │ attackType (Melee/Ranged)
+  └──────────────────────────│ imageUrl
+                             │ roles (text[])
+
+NewsArticles               ActivityLogs
+  │ id (PK)                  │ id (PK)
+  │ title                    │ userId (FK → Users)
+  │ content                  │ action
+  │ category                 │ entityType
+  │ imageUrl                 │ createdAt
+  └──────────────────────────┘
 ```
 
 ---
 
-## Database Schema
+## Требования
 
-### Key Entities & Relationships
+### Обязательные
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [PostgreSQL 16 или 18](https://www.postgresql.org/download/)
 
-```
-User (1) ──── (0..1) ProPlayer
-ProPlayer (N) ──── (1) Team
-Team (1) ──── (N) Match [as TeamA / TeamB]
-Tournament (1) ──── (N) TournamentStage (1) ──── (N) Match
-Match (1) ──── (N) GameMap (1) ──── (N) MatchPlayerStat
-GameMap (1) ──── (N) GameMapDraft
-ProPlayer (N:N) Hero [via PlayerHeroStat]
-Team (N:N) Hero [via TeamHeroStat]
-User (1) ──── (N) ActivityLog
-```
+### Опциональные
+- Docker (для запуска через контейнеры)
+- Git
 
 ---
 
-## Roles & Permissions
+## Установка и запуск
 
-| Role | Access |
-|------|--------|
-| **Regular** | View all public pages, profile, can apply for pro status |
-| **ProPlayer** | All of above + edit own pro profile, upload avatar |
-| **Admin** | Full access + admin panel, approve/reject pro applications, manage teams/matches/tournaments, view logs, run console commands |
-
-### Default Seed Accounts
-
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@hda.gg` | `Admin123!` | Admin |
-| `fan@hda.gg` | `Fan123!` | Regular |
-
----
-
-## Quick Start
-
-### Option 1: Docker Compose (recommended)
+### 1. Клонирование / копирование проекта
 
 ```bash
-git clone <repo-url> HDA
-cd HDA
-docker compose up --build
+git clone https://github.com/yourname/hda.git
+cd hda
 ```
 
-App will be available at **http://localhost:8080**  
-Database will be auto-migrated and seeded on first run.
+Или скопируй папку проекта на компьютер.
 
-### Option 2: Local Development
+### 2. Настройка базы данных PostgreSQL
 
-**Prerequisites:** .NET 8 SDK, PostgreSQL 16
+Открой **SQL Shell (psql)** или выполни в PowerShell:
+
+```powershell
+# Создать пользователя и базу данных
+psql -U postgres -c "CREATE USER hda_user WITH PASSWORD 'hda_pass';"
+psql -U postgres -c "CREATE DATABASE hda_db OWNER hda_user;"
+psql -U postgres -d hda_db -c "GRANT ALL ON SCHEMA public TO hda_user;"
+```
+
+### 3. Строка подключения
+
+Строка подключения в `src/HDA.Web/appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=hda_db;Username=hda_user;Password=hda_pass"
+  }
+}
+```
+
+### 4. Восстановление зависимостей
 
 ```bash
-# 1. Clone and navigate
-git clone <repo-url> HDA && cd HDA
+dotnet restore src/HDA.Web/HDA.Web.csproj
+```
 
-# 2. Start PostgreSQL (or update connection string)
-# Edit src/HDA.Web/appsettings.Development.json with your local DB credentials
+### 5. Применение миграций
 
-# 3. Restore & run migrations
+```bash
+dotnet ef database update --project src/HDA.Infrastructure --startup-project src/HDA.Web
+```
+
+> **Примечание:** Миграции применяются автоматически при первом запуске через `app.MigrateDatabase()` в `Program.cs`. Ручной запуск не обязателен.
+
+### 6. Запуск приложения
+
+```bash
 cd src/HDA.Web
-dotnet restore
-dotnet ef database update --project ../HDA.Infrastructure
-
-# 4. Run
 dotnet run
 ```
 
-App available at **https://localhost:5001** / **http://localhost:5000**
+Приложение будет доступно по адресу: **http://localhost:5000**
+
+При первом запуске `DbSeeder` автоматически заполнит базу данных:
+- 126 героев Dota 2 (патч 7.40c)
+- Профессиональные команды, матчи, турниры
+- Тестовые аккаунты пользователей
+- Новостные статьи
 
 ---
 
-## EF Core Migrations
+## Запуск через Docker
+
+### docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hda_user
+      POSTGRES_PASSWORD: hda_pass
+      POSTGRES_DB: hda_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build: .
+    ports:
+      - "5000:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=hda_db;Username=hda_user;Password=hda_pass
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+```
+
+### Dockerfile
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/HDA.Web/HDA.Web.csproj", "src/HDA.Web/"]
+COPY ["src/HDA.Infrastructure/HDA.Infrastructure.csproj", "src/HDA.Infrastructure/"]
+COPY ["src/HDA.Domain/HDA.Domain.csproj", "src/HDA.Domain/"]
+RUN dotnet restore "src/HDA.Web/HDA.Web.csproj"
+COPY . .
+RUN dotnet publish "src/HDA.Web/HDA.Web.csproj" -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "HDA.Web.dll"]
+```
 
 ```bash
-# From /src/HDA.Web directory:
+# Сборка и запуск
+docker compose build
+docker compose up -d
 
-# Add a new migration
-dotnet ef migrations add MigrationName --project ../HDA.Infrastructure
-
-# Apply migrations
-dotnet ef database update --project ../HDA.Infrastructure
-
-# Remove last migration
-dotnet ef migrations remove --project ../HDA.Infrastructure
+# Просмотр логов
+docker compose logs -f web
 ```
 
 ---
 
-## Features
+## Перенос на другой компьютер
 
-### Public Pages
-- **Home** — Live matches, upcoming schedule, recent results, latest news
-- **Matches** — Tabs: Upcoming / Live / Results with tournament filter
-- **Match Detail** — Full scoreboard, draft picks/bans, per-game stats
-- **Teams** — World ranking table with rating points
-- **Team Detail** — Roster, recent results, hero pick/ban stats
-- **Players** — Pro player gallery with search
-- **Player Detail** — Career stats, hero pool, recent games
-- **Tournaments** — Grouped by status (Ongoing/Upcoming/Completed)
-- **Tournament Detail** — Participants with placements/prizes, matches by stage
-- **Heroes** — Full hero grid with attribute/role filters
-- **News** — Category-filtered news feed
+### Резервная копия базы данных
 
-### User Features
-- Register / Login
-- Profile page with password change
-- Apply for Pro Player status (pending admin approval)
-- Pro Profile — edit nickname, team, role, bio, country, upload avatar photo
+```powershell
+# Создать дамп
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" `
+  -U hda_user -h localhost -d hda_db -F c `
+  -f "C:\путь\до\hda_backup.dump"
+```
 
-### Admin Panel (`/admin`)
-- Stats dashboard (users, teams, matches, tournaments)
-- **Pending Approvals** — Approve/reject pro player applications
-- **Teams** — Create/edit/delete teams, upload logos
-- **Matches** — Schedule/edit/delete matches, set scores and winners
-- **Activity Logs** — Full audit trail of all actions
-- **Console** — Built-in admin console:
-  - `sync-heroes` — Pull hero data from OpenDota API
-  - `clear-logs` — Delete log entries older than 30 days
-  - `list-users` — List all registered users
-  - `stats` — Print database stats
+### Восстановление на новом компьютере
+
+```powershell
+# 1. Создать БД
+psql -U postgres -c "CREATE USER hda_user WITH PASSWORD 'hda_pass';"
+psql -U postgres -c "CREATE DATABASE hda_db OWNER hda_user;"
+psql -U postgres -d hda_db -c "GRANT ALL ON SCHEMA public TO hda_user;"
+
+# 2. Восстановить дамп
+& "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" `
+  -U hda_user -h localhost -d hda_db "C:\путь\до\hda_backup.dump"
+
+# 3. Запустить проект
+cd C:\путь\до\HDA\src\HDA.Web
+dotnet run
+```
 
 ---
 
-## Data Sources
+## Аккаунты по умолчанию
 
-| Source | Usage |
-|--------|-------|
-| **OpenDota API** | Hero sync (`/api/heroes`) |
-| **PandaScore** | Ready for integration (match/tournament data) |
-| **Steam Web API** | Ready for integration (match replays) |
-| Manual entry | Admin panel — teams, matches, tournaments |
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ConnectionStrings__DefaultConnection` | See appsettings | PostgreSQL connection string |
-| `ASPNETCORE_ENVIRONMENT` | `Production` | Environment name |
+| Роль | Email | Пароль |
+|------|-------|--------|
+| Администратор | `admin12@example.com` | `admin12parol12` |
+| Пользователь | `fan@hda.gg` | `Fan123!` |
+| Пользователь | `dota@hda.gg` | `Dota123!` |
+| Аналитик | `analyst@hda.gg` | `Ana123!` |
 
 ---
 
-## License
+## Структура проекта
 
-Educational project. Not affiliated with Valve Corporation or any Dota 2 partner.  
-Data from OpenDota is used under their open API terms.
- 
+```
+src/
+├── HDA.Domain/
+│   ├── Entities/
+│   │   ├── User.cs
+│   │   ├── Team.cs
+│   │   ├── Match.cs
+│   │   ├── Tournament.cs
+│   │   ├── Hero.cs
+│   │   ├── ProPlayer.cs
+│   │   ├── NewsArticle.cs
+│   │   └── ActivityLog.cs
+│   └── Enums/
+│       └── Enums.cs          # UserRole, ProPlayerStatus, PlayerRole, ...
+│
+├── HDA.Infrastructure/
+│   ├── Data/
+│   │   ├── HdaDbContext.cs
+│   │   └── DbSeeder.cs       # Автозаполнение БД при запуске
+│   └── Services/
+│       ├── AuthService.cs
+│       ├── TeamService.cs
+│       ├── MatchService.cs
+│       ├── TournamentService.cs
+│       ├── NewsService.cs
+│       ├── ProPlayerService.cs
+│       ├── OpenDotaService.cs # Интеграция с OpenDota API
+│       └── AppState.cs        # Глобальное состояние приложения
+│
+└── HDA.Web/
+    ├── Components/
+    │   ├── Layout/
+    │   │   ├── MainLayout.razor
+    │   │   └── NavMenu.razor
+    │   └── Pages/
+    │       ├── Home.razor
+    │       ├── Matches/
+    │       ├── Teams/
+    │       ├── Tournaments/
+    │       ├── Heroes/
+    │       ├── Players/
+    │       ├── News/
+    │       ├── Auth/
+    │       └── Admin/
+    │           ├── AdminDashboard.razor
+    │           ├── AdminOverviewPanel.razor
+    │           ├── AdminUsersPanel.razor
+    │           ├── AdminTeamsEditor.razor
+    │           ├── AdminMatchesEditor.razor
+    │           ├── AdminTournamentsEditor.razor
+    │           ├── AdminNewsPanel.razor
+    │           ├── AdminPlayersEditor.razor
+    │           ├── AdminConsole.razor
+    │           ├── AdminLogsPanel.razor
+    │           └── AdminProApplicationsPanel.razor
+    ├── wwwroot/
+    │   ├── css/hda.css
+    │   └── js/hda.js
+    ├── appsettings.json
+    └── Program.cs
+```
+
+---
+
+## Страницы приложения
+
+| URL | Описание |
+|-----|----------|
+| `/` | Главная страница с анимацией, статистикой, матчами |
+| `/matches` | Список матчей с фильтрацией |
+| `/teams` | Рейтинг команд |
+| `/teams/{id}` | Детальная страница команды |
+| `/teams/compare` | Сравнение двух команд |
+| `/tournaments` | Список турниров |
+| `/heroes` | Галерея героев с фильтрами |
+| `/players` | Профили про-игроков |
+| `/news` | Новостная лента |
+| `/login` | Вход в систему |
+| `/register` | Регистрация |
+| `/profile` | Личный кабинет |
+| `/pro-profile` | Форма заявки на верификацию |
+| `/admin` | Панель администратора |
+
+---
+
+## API интеграция
+
+### OpenDota API
+
+Приложение использует публичный [OpenDota API](https://api.opendota.com) для синхронизации данных о героях Dota 2.
+
+**Эндпоинт:** `GET https://api.opendota.com/api/heroes`
+
+Синхронизация выполняется автоматически при запуске (`OpenDotaService.SyncHeroesAsync()`). Если данные в БД актуальны, синхронизация пропускается.
+
+### Steam CDN
+
+Изображения героев загружаются с официального Steam CDN:
+
+```
+https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/{hero_name}.png
+```
+
+---
+
+## Лицензия
+
+Проект разработан в учебных целях в рамках курсового проекта по дисциплине «Кроссплатформенная среда исполнения программного обеспечения».
