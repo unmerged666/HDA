@@ -136,7 +136,7 @@ else
     {
         p.Status = ProPlayerStatus.Approved;
         p.UpdatedAt = DateTime.UtcNow;
-        // Also set user role to ProPlayer
+        
         var user = await Db.Users.FindAsync(p.UserId);
         if (user != null) user.Role = UserRole.ProPlayer;
         await Db.SaveChangesAsync();
@@ -148,7 +148,7 @@ else
     {
         p.Status = ProPlayerStatus.Rejected;
         p.UpdatedAt = DateTime.UtcNow;
-        // Downgrade user role if was ProPlayer
+        
         var user = await Db.Users.FindAsync(p.UserId);
         if (user?.Role == UserRole.ProPlayer) user.Role = UserRole.Regular;
         await Db.SaveChangesAsync();
