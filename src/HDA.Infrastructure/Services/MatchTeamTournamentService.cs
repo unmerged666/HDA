@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HDA.Infrastructure.Services;
 
-// ─────────────────────────── MATCH SERVICE ────────────────────────────────────
+
 
 public interface IMatchService
 {
@@ -76,7 +76,7 @@ public class MatchService : IMatchService
     }
 }
 
-// ─────────────────────────── TEAM SERVICE ─────────────────────────────────────
+
 
 public interface ITeamService
 {
@@ -133,7 +133,7 @@ public class TeamService : ITeamService
             .Take(count).ToListAsync();
 }
 
-// ─────────────────────────── TOURNAMENT SERVICE ───────────────────────────────
+
 
 public interface ITournamentService
 {
