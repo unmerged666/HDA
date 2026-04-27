@@ -9,7 +9,7 @@ public class Match
     public int? StageId { get; set; }
     public int TeamAId { get; set; }
     public int TeamBId { get; set; }
-    public MatchFormat Format { get; set; } // bo1, bo2, bo3, bo5
+    public MatchFormat Format { get; set; } 
     public MatchStatus Status { get; set; }
     public DateTime ScheduledAt { get; set; }
     public DateTime? StartedAt { get; set; }
@@ -23,7 +23,7 @@ public class Match
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation
+    
     public Tournament Tournament { get; set; } = null!;
     public TournamentStage? Stage { get; set; }
     public Team TeamA { get; set; } = null!;
@@ -36,15 +36,15 @@ public class GameMap
 {
     public int Id { get; set; }
     public int MatchId { get; set; }
-    public int MapNumber { get; set; } // 1, 2, 3...
+    public int MapNumber { get; set; } 
     public int? RadiantTeamId { get; set; }
     public int? DireTeamId { get; set; }
     public int? WinnerTeamId { get; set; }
     public int DurationSeconds { get; set; }
-    public string? DotaMatchId { get; set; } // from Valve/OpenDota
+    public string? DotaMatchId { get; set; } 
     public DateTime? PlayedAt { get; set; }
 
-    // Scoreboard summary
+    
     public int RadiantKills { get; set; }
     public int DireKills { get; set; }
 
@@ -85,7 +85,7 @@ public class GameMapDraft
     public int Id { get; set; }
     public int GameMapId { get; set; }
     public int HeroId { get; set; }
-    public DraftAction Action { get; set; } // Pick or Ban
+    public DraftAction Action { get; set; } 
     public bool IsRadiant { get; set; }
     public int Order { get; set; }
 
