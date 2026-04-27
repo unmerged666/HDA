@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HDA.Infrastructure.Services;
 
-// ─────────────────────────── PRO PLAYER SERVICE ───────────────────────────────
+
 
 public interface IProPlayerService
 {
@@ -115,7 +115,7 @@ public class ProPlayerService : IProPlayerService
     }
 }
 
-// ─────────────────────────── NEWS SERVICE ─────────────────────────────────────
+
 
 public interface INewsService
 {
