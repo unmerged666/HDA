@@ -43,7 +43,7 @@ public class OpenDotaService : IOpenDotaService
                         OpenDotaId = h.Id,
                         Name = h.Name?.Replace("npc_dota_hero_", "") ?? "",
                         LocalizedName = h.LocalizedName ?? "",
-                        // Use API attr but default to "str" if API returns generic "all"
+                        
                         PrimaryAttribute = (h.PrimaryAttr?.ToLowerInvariant() is "str" or "agi" or "int" or "all")
                             ? h.PrimaryAttr?.ToLowerInvariant() : "str",
                         AttackType = h.AttackType,
@@ -54,7 +54,7 @@ public class OpenDotaService : IOpenDotaService
                 else
                 {
                     existing.LocalizedName = h.LocalizedName ?? existing.LocalizedName;
-                    // Only update attr if API returns specific value (not "all" which is often wrong)
+                    
                     var apiAttr = h.PrimaryAttr?.ToLowerInvariant();
                     if (!string.IsNullOrEmpty(apiAttr) && apiAttr != "all")
                         existing.PrimaryAttribute = apiAttr;
@@ -67,7 +67,7 @@ public class OpenDotaService : IOpenDotaService
         }
         catch (Exception ex)
         {
-            // Log and continue — not critical
+            
             Console.WriteLine($"[OpenDota] Hero sync failed: {ex.Message}");
         }
     }
