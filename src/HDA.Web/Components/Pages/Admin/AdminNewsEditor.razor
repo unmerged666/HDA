@@ -129,7 +129,7 @@ else
         if (!_isNew)
         {
             _article = await NewsService.GetBySlugAsync("") ?? null;
-            // Load by ID — extend NewsService if needed; for now fetch from list
+            
             var all = await NewsService.GetAllAsync();
             _article = all.FirstOrDefault(a => a.Id == Id);
             if (_article != null)
