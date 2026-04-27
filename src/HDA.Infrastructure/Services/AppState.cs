@@ -10,7 +10,7 @@ public class AppState
     public bool IsAdmin => CurrentUser?.Role == UserRole.Admin;
     public bool IsProPlayer => CurrentUser?.Role == UserRole.ProPlayer || IsAdmin;
 
-    // Use Action (sync) - callers must use InvokeAsync themselves
+    
     public event Action? OnChange;
 
     public void SetUser(User? user)
