@@ -5,7 +5,7 @@ namespace HDA.Infrastructure.Services;
 
 public class SearchResult
 {
-    public string Type { get; set; } = "";  // team, player, tournament, news
+    public string Type { get; set; } = "";  
     public string Title { get; set; } = "";
     public string? Subtitle { get; set; }
     public string Url { get; set; } = "";
