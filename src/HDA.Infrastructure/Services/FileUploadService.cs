@@ -12,7 +12,7 @@ public interface IFileUploadService
 public class FileUploadService : IFileUploadService
 {
     private readonly string _webRootPath;
-    private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
+    private const long MaxFileSize = 5 * 1024 * 1024; 
 
     public FileUploadService(string webRootPath) => _webRootPath = webRootPath;
 
