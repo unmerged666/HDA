@@ -42,11 +42,11 @@ public enum MatchStatus
 
 public enum TournamentTier
 {
-    S = 1,  // The International
-    A = 2,  // Major
-    B = 3,  // Minor
-    C = 4,  // Regional league
-    D = 5   // Open qualifier
+    S = 1,  
+    A = 2,  
+    B = 3,  
+    C = 4,  
+    D = 5   
 }
 
 public enum TournamentStatus
