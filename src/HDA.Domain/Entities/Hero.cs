@@ -7,8 +7,8 @@ public class Hero
     public string LocalizedName { get; set; } = string.Empty;
     public string? ImageUrl { get; set; }
     public string? IconUrl { get; set; }
-    public string? PrimaryAttribute { get; set; } // str/agi/int/universal
-    public string? AttackType { get; set; } // Melee/Ranged
+    public string? PrimaryAttribute { get; set; } 
+    public string? AttackType { get; set; } 
     public string[]? Roles { get; set; }
     public int OpenDotaId { get; set; }
 
@@ -51,7 +51,7 @@ public class NewsArticle
     public string Content { get; set; } = string.Empty;
     public string? Summary { get; set; }
     public string? ImageUrl { get; set; }
-    public string? Category { get; set; } // Transfer, Result, Patch, Interview
+    public string? Category { get; set; } 
     public bool IsPublished { get; set; }
     public int AuthorId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
