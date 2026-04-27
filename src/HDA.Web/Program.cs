@@ -7,11 +7,11 @@ using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Database ──────────────────────────────────────────────────────────────────
+
 builder.Services.AddDbContext<HdaDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ── Blazor + SignalR with extended timeouts ───────────────────────────────────
+
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.WebHost.ConfigureKestrel(o =>
@@ -25,11 +25,11 @@ builder.Services.AddSignalR(o =>
 });
 builder.Services.AddMudServices();
 
-// ── HTTP ──────────────────────────────────────────────────────────────────────
+
 builder.Services.AddHttpClient<IOpenDotaService, OpenDotaService>(c =>
     c.Timeout = TimeSpan.FromSeconds(30));
 
-// ── App Services ──────────────────────────────────────────────────────────────
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
@@ -56,19 +56,19 @@ app.UseRouting();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
-// ── Seed + startup tasks ──────────────────────────────────────────────────────
+
 using (var scope = app.Services.CreateScope())
 {
     var ctx  = scope.ServiceProvider.GetRequiredService<HdaDbContext>();
     var odota = scope.ServiceProvider.GetRequiredService<IOpenDotaService>();
 
-    // Create schema using the same context that will seed
-    // This ensures the same connection sees the tables it just created
+    
+    
     await ctx.Database.EnsureCreatedAsync();
 
     await DbSeeder.SeedAsync(ctx);
 
-    // Ensure admin user exists with correct credentials (update if email changed)
+    
     var adminUser = await ctx.Users.FirstOrDefaultAsync(u => u.Role == HDA.Domain.Enums.UserRole.Admin);
     if (adminUser != null)
     {
@@ -78,13 +78,13 @@ using (var scope = app.Services.CreateScope())
         await ctx.SaveChangesAsync();
     }
 
-    // Fix legacy .svg logo paths
+    
     var svgTeams = ctx.Teams.Where(t => t.LogoUrl != null && t.LogoUrl.EndsWith(".svg")).ToList();
     foreach (var t in svgTeams) t.LogoUrl = t.LogoUrl!.Replace(".svg", ".png");
     if (svgTeams.Any()) await ctx.SaveChangesAsync();
 
-    // Sync heroes only if DB has fewer than 100 (missing most heroes)
-    // Don't sync if we have enough - OpenDota returns wrong attrs for many heroes
+    
+    
     var heroCount = await ctx.Heroes.CountAsync();
     if (heroCount < 100)
     {
