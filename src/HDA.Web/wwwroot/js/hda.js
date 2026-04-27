@@ -9,8 +9,8 @@
         try {
             var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
             return /^#[dDeEfF]/i.test(bg)
-                ? 'rgba(22,199,132,0.6)'   // light theme
-                : 'rgba(22,199,132,0.48)'; // dark theme
+                ? 'rgba(22,199,132,0.6)'   
+                : 'rgba(22,199,132,0.48)'; 
         } catch(e) {
             return 'rgba(22,199,132,0.48)';
         }
@@ -85,18 +85,18 @@
     function watchForCanvas() {
         findAndStart();
         if (document.getElementById('hdaGrid')) return;
-        // Not found — watch DOM until it appears
+        
         _mo = new MutationObserver(function() { findAndStart(); });
         _mo.observe(document.body || document.documentElement, { childList: true, subtree: true });
     }
 
-    // Start immediately
+    
     if (document.readyState !== 'loading') {
         watchForCanvas();
     } else {
         document.addEventListener('DOMContentLoaded', watchForCanvas);
     }
 
-    // Re-run after Blazor navigation
+    
     document.addEventListener('enhancedload', watchForCanvas);
 })();
