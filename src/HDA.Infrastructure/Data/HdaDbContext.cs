@@ -28,7 +28,7 @@ public class HdaDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // ── User ──────────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<User>(e =>
         {
             e.HasKey(x => x.Id);
@@ -37,7 +37,7 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Role).HasConversion<string>();
         });
 
-        // ── ProPlayer ─────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<ProPlayer>(e =>
         {
             e.HasKey(x => x.Id);
@@ -53,14 +53,14 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Status).HasConversion<string>();
         });
 
-        // ── Team ──────────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<Team>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Name).IsUnique();
         });
 
-        // ── Tournament ────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<Tournament>(e =>
         {
             e.HasKey(x => x.Id);
@@ -85,7 +85,7 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Type).HasConversion<string>();
         });
 
-        // ── Match ─────────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<Match>(e =>
         {
             e.HasKey(x => x.Id);
@@ -98,7 +98,7 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Status).HasConversion<string>();
         });
 
-        // ── GameMap ───────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<GameMap>(e =>
         {
             e.HasKey(x => x.Id);
@@ -107,7 +107,7 @@ public class HdaDbContext : DbContext
             e.HasOne(x => x.DireTeam).WithMany().HasForeignKey(x => x.DireTeamId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ── MatchPlayerStat ───────────────────────────────────────────────────
+        
         modelBuilder.Entity<MatchPlayerStat>(e =>
         {
             e.HasKey(x => x.Id);
@@ -116,7 +116,7 @@ public class HdaDbContext : DbContext
             e.HasOne(x => x.Hero).WithMany().HasForeignKey(x => x.HeroId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ── GameMapDraft ──────────────────────────────────────────────────────
+        
         modelBuilder.Entity<GameMapDraft>(e =>
         {
             e.HasKey(x => x.Id);
@@ -125,7 +125,7 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Action).HasConversion<string>();
         });
 
-        // ── Hero ──────────────────────────────────────────────────────────────
+        
         modelBuilder.Entity<Hero>(e =>
         {
             e.HasKey(x => x.Id);
@@ -133,7 +133,7 @@ public class HdaDbContext : DbContext
             e.Property(x => x.Roles).HasColumnType("text[]");
         });
 
-        // ── PlayerHeroStat ────────────────────────────────────────────────────
+        
         modelBuilder.Entity<PlayerHeroStat>(e =>
         {
             e.HasKey(x => x.Id);
@@ -142,7 +142,7 @@ public class HdaDbContext : DbContext
             e.HasOne(x => x.Hero).WithMany(x => x.PlayerStats).HasForeignKey(x => x.HeroId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        // ── TeamHeroStat ──────────────────────────────────────────────────────
+        
         modelBuilder.Entity<TeamHeroStat>(e =>
         {
             e.HasKey(x => x.Id);
@@ -151,7 +151,7 @@ public class HdaDbContext : DbContext
             e.HasOne(x => x.Hero).WithMany(x => x.TeamStats).HasForeignKey(x => x.HeroId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        // ── NewsArticle ───────────────────────────────────────────────────────
+        
         modelBuilder.Entity<NewsArticle>(e =>
         {
             e.HasKey(x => x.Id);
@@ -159,7 +159,7 @@ public class HdaDbContext : DbContext
             e.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ── ActivityLog ───────────────────────────────────────────────────────
+        
         modelBuilder.Entity<ActivityLog>(e =>
         {
             e.HasKey(x => x.Id);
