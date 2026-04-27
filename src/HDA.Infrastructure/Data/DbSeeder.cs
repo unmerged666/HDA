@@ -12,7 +12,7 @@ public static class DbSeeder
 
     private static string GetHeroImageUrl(string name)
     {
-        // Steam CDN uses specific naming - map internal names to CDN names
+        
         var map = new Dictionary<string,string>
         {
             ["anti_mage"]="antimage",
@@ -78,10 +78,10 @@ public static class DbSeeder
 
     public static async Task SeedAsync(HdaDbContext ctx)
     {
-        // EnsureCreated was just called by Program.cs on this same ctx instance
-        // Tables definitely exist now. Check if we need to seed.
+        
+        
         bool hasUsers = await ctx.Users.AnyAsync();
-        // Detect stale data: wrong hero attrs OR old team structure
+        
         var heroCount       = hasUsers ? await ctx.Heroes.CountAsync() : 0;
         var hasNoRingmaster = hasUsers && !await ctx.Heroes.AnyAsync(h => h.Name == "ringmaster");
         var hasNoLargo      = hasUsers && !await ctx.Heroes.AnyAsync(h => h.Name == "largo");
@@ -92,7 +92,7 @@ public static class DbSeeder
 
         if (hasOldData)
         {
-            // Wipe all data and re-seed
+            
             try { ctx.ActivityLogs.RemoveRange(ctx.ActivityLogs); await ctx.SaveChangesAsync(); } catch { }
             try { ctx.NewsArticles.RemoveRange(ctx.NewsArticles); await ctx.SaveChangesAsync(); } catch { }
             try { ctx.MatchPlayerStats.RemoveRange(ctx.MatchPlayerStats); await ctx.SaveChangesAsync(); } catch { }
@@ -118,10 +118,10 @@ public static class DbSeeder
         var user3 = new User { Username="analyst",Email="analyst@hda.gg",PasswordHash=BCrypt.Net.BCrypt.HashPassword("Ana123!"),  Role=UserRole.Regular, IsActive=true, CreatedAt=now };
         ctx.Users.AddRange(admin, fan, user2, user3);
 
-        // Heroes - полный список Dota 2 патч 7.40c с верными атрибутами
+        
         var heroData = new (string n, string ln, string attr, string atk, string[] roles, int id)[]
         {
-            // ── СИЛА (35 героев) ─────────────────────────────────────────
+            
             ("axe","Axe","str","Melee",["Initiator","Durable","Disabler"],2),
             ("pudge","Pudge","str","Melee",["Support","Durable","Disabler","Initiator"],14),
             ("earthshaker","Earthshaker","str","Melee",["Support","Initiator","Disabler","Nuker"],7),
@@ -157,7 +157,7 @@ public static class DbSeeder
             ("legion_commander","Legion Commander","str","Melee",["Carry","Initiator","Durable","Disabler","Jungler","Nuker"],104),
             ("wisp","Io","str","Ranged",["Support","Escape","Jungler"],91),
             ("lifestealer","Lifestealer","str","Melee",["Carry","Jungler","Durable","Disabler"],54),
-            // ── ЛОВКОСТЬ (34 героя) ───────────────────────────────────────
+            
             ("anti_mage","Anti-Mage","agi","Melee",["Carry","Escape"],1),
             ("shadow_fiend","Shadow Fiend","agi","Ranged",["Carry","Nuker"],11),
             ("juggernaut","Juggernaut","agi","Melee",["Carry","Jungler","Pusher"],8),
@@ -191,7 +191,7 @@ public static class DbSeeder
             ("vengefulspirit","Vengeful Spirit","agi","Ranged",["Support","Carry","Disabler","Nuker","Initiator"],20),
             ("hoodwink","Hoodwink","agi","Ranged",["Support","Carry","Disabler","Nuker","Escape","Initiator"],123),
             ("spectre","Spectre","agi","Melee",["Carry","Escape","Durable","Disabler"],67),
-            // ── ИНТЕЛЛЕКТ (34 героя) ──────────────────────────────────────
+            
             ("crystal_maiden","Crystal Maiden","int","Ranged",["Support","Disabler","Nuker"],5),
             ("invoker","Invoker","int","Ranged",["Carry","Nuker","Disabler","Escape"],74),
             ("witch_doctor","Witch Doctor","int","Ranged",["Support","Nuker","Disabler"],30),
@@ -226,7 +226,7 @@ public static class DbSeeder
             ("queenofpain","Queen of Pain","int","Ranged",["Carry","Nuker","Escape","Disabler","Initiator"],39),
             ("ringmaster","Ringmaster","int","Ranged",["Support","Initiator","Disabler","Nuker","Durable"],139),
             ("muerta","Muerta","int","Ranged",["Carry","Support","Nuker","Disabler"],136),
-            // ── УНИВЕРСАЛ (24 героя) ──────────────────────────────────────
+            
             ("void_spirit","Void Spirit","all","Melee",["Carry","Escape","Nuker","Disabler"],126),
             ("earth_spirit","Earth Spirit","all","Melee",["Initiator","Disabler","Nuker","Escape","Durable","Support"],107),
             ("abaddon","Abaddon","all","Melee",["Support","Carry","Durable"],102),
@@ -258,30 +258,30 @@ public static class DbSeeder
             ImageUrl=GetHeroImageUrl(h.n)
         }));
 
-        // ── РЕАЛЬНЫЕ КОМАНДЫ (данные на март 2026) ───────────────────────────
-        // Falcons: TI 2025 чемпионы. Состав: skiter, Malr1ne, ATF, Cr1t-, Sneyking
+        
+        
         var falcons = new Team { Name="Team Falcons",   Tag="FLCN",   Region="MENA",         Country="Saudi Arabia",   Founded=Utc(2023,11,17), RatingPoints=4850, WorldRank=1, LogoUrl="/images/teams/falcons.png", CreatedAt=now, UpdatedAt=now, Organization="Falcons Esports" };
-        // Tundra: TI 2022 чемпионы, 4x BLAST Slam. Состав: 33, Pure, bzm, Whitemon, Ari
+        
         var tundra  = new Team { Name="Tundra Esports", Tag="Tundra", Region="Europe",        Country="United Kingdom", Founded=Utc(2020,1,1),   RatingPoints=4600, WorldRank=2, LogoUrl="/images/teams/tundra.png",  CreatedAt=now, UpdatedAt=now, Organization="Tundra Esports" };
-        // Team Spirit: TI 2021 чемпионы, EWC 2025 победители
+        
         var spirit  = new Team { Name="Team Spirit",    Tag="Spirit", Region="CIS",           Country="Russia",         Founded=Utc(2015,1,1),   RatingPoints=4400, WorldRank=3, LogoUrl="/images/teams/spirit.png",  CreatedAt=now, UpdatedAt=now, Organization="Team Spirit" };
-        // Liquid: PGL Wallachia x2, EWC top-8
+        
         var liquid  = new Team { Name="Team Liquid",    Tag="TL",     Region="Europe",        Country="Netherlands",    Founded=Utc(2000,1,1),   RatingPoints=4200, WorldRank=4, LogoUrl="/images/teams/liquid.png",  CreatedAt=now, UpdatedAt=now, Organization="Team Liquid" };
-        // OG: TI 2018, TI 2019 чемпионы
+        
         var og      = new Team { Name="OG",             Tag="OG",     Region="Europe",        Country="International",  Founded=Utc(2015,8,12),  RatingPoints=4000, WorldRank=5, LogoUrl="/images/teams/og.png",      CreatedAt=now, UpdatedAt=now, Organization="OG Esports" };
-        // Xtreme Gaming: TI 2025 финалисты
+        
         var xg      = new Team { Name="Xtreme Gaming",  Tag="XG",     Region="China",         Country="China",          Founded=Utc(2022,1,1),   RatingPoints=3900, WorldRank=6, LogoUrl="/images/teams/xg.png",      CreatedAt=now, UpdatedAt=now, Organization="Xtreme Gaming" };
-        // NAVI: постоянно топ-8 в 2025
+        
         var navi    = new Team { Name="Natus Vincere",  Tag="NAVI",   Region="CIS",           Country="Ukraine",        Founded=Utc(2009,12,14), RatingPoints=3600, WorldRank=7, LogoUrl="/images/teams/navi.png",    CreatedAt=now, UpdatedAt=now, Organization="Natus Vincere" };
-        // BetBoom: TI 2025 top-4
+        
         var betboom = new Team { Name="BetBoom Team",   Tag="BB",     Region="CIS",           Country="Russia",         Founded=Utc(2021,1,1),   RatingPoints=3400, WorldRank=8, LogoUrl="/images/teams/betboom.png", CreatedAt=now, UpdatedAt=now, Organization="BetBoom" };
-        // Heroic: TI 2025 top-4
+        
         var heroic  = new Team { Name="Heroic",         Tag="Heroic", Region="Europe",        Country="Denmark",        Founded=Utc(2019,1,1),   RatingPoints=3300, WorldRank=9, LogoUrl="/images/teams/heroic.png",  CreatedAt=now, UpdatedAt=now, Organization="Heroic Esports" };
-        // Secret: опытнейшая организация
+        
         var secret  = new Team { Name="Team Secret",    Tag="Secret", Region="Europe",        Country="International",  Founded=Utc(2014,9,1),   RatingPoints=3100, WorldRank=10, LogoUrl="/images/teams/secret.png", CreatedAt=now, UpdatedAt=now, Organization="Team Secret" };
         ctx.Teams.AddRange(falcons, tundra, spirit, liquid, og, xg, navi, betboom, heroic, secret);
 
-        // ── РЕАЛЬНЫЕ ТУРНИРЫ ─────────────────────────────────────────────────
+       
         var ti25   = new Tournament { Name="The International 2025", Organizer="Valve", Region="Global", PrizePool=2_881_791, StartDate=Utc(2025,9,4), EndDate=Utc(2025,9,14), Tier=TournamentTier.S, Status=TournamentStatus.Completed, Description="TI14 — 14-е издание The International, финал в Hamburg, Германия. Team Falcons победили Xtreme Gaming 3-2 в гранд-финале, завоевав Aegis of Champions.", LogoUrl="/images/tournaments/ti2024.png", Location="Hamburg, Germany", CreatedAt=now, UpdatedAt=now };
         var blast5  = new Tournament { Name="BLAST Slam V",          Organizer="BLAST", Region="Global", PrizePool=1_000_000, StartDate=Utc(2025,11,27), EndDate=Utc(2025,12,7), Tier=TournamentTier.A, Status=TournamentStatus.Completed, Description="Tundra Esports выиграли BLAST Slam V, победив в финале со счётом 3-1. Это их 4-й подряд титул BLAST Slam.", Location="Online", CreatedAt=now, UpdatedAt=now };
         var dl27    = new Tournament { Name="DreamLeague Season 27",  Organizer="ESL/DreamHack", Region="Global", PrizePool=1_000_000, StartDate=Utc(2025,12,9), EndDate=Utc(2025,12,21), Tier=TournamentTier.A, Status=TournamentStatus.Completed, Description="Tundra Esports выиграли DreamLeague Season 27, закрепив за собой позицию №1 в мировом рейтинге.", Location="Online", CreatedAt=now, UpdatedAt=now };
@@ -291,7 +291,7 @@ public static class DbSeeder
         ctx.Tournaments.AddRange(ti25, blast5, dl27, blast6, pglw7, esl_bir);
         await ctx.SaveChangesAsync();
 
-        // Participants TI 2025 (реальные результаты)
+        
         ctx.TournamentParticipants.AddRange(
             new TournamentParticipant { TournamentId=ti25.Id, TeamId=falcons.Id, FinalPlacement=1, PrizeWon=1_224_761 },
             new TournamentParticipant { TournamentId=ti25.Id, TeamId=xg.Id,      FinalPlacement=2, PrizeWon=374_333 },
@@ -309,7 +309,7 @@ public static class DbSeeder
             new TournamentParticipant { TournamentId=blast6.Id, TeamId=tundra.Id,  FinalPlacement=2, PrizeWon=200_000 }
         );
 
-        // Stages
+       
         var tiGF  = new TournamentStage { TournamentId=ti25.Id,  Name="Grand Final",   Type=StageType.GrandFinals, Order=3, StartDate=Utc(2025,9,14), EndDate=Utc(2025,9,14) };
         var tiPO  = new TournamentStage { TournamentId=ti25.Id,  Name="Playoffs",      Type=StageType.Playoffs,    Order=2, StartDate=Utc(2025,9,11), EndDate=Utc(2025,9,13) };
         var tiGS  = new TournamentStage { TournamentId=ti25.Id,  Name="Group Stage",   Type=StageType.GroupStage,  Order=1, StartDate=Utc(2025,9,4),  EndDate=Utc(2025,9,7)  };
@@ -318,17 +318,17 @@ public static class DbSeeder
         ctx.TournamentStages.AddRange(tiGF, tiPO, tiGS, b5GF, pglGS);
         await ctx.SaveChangesAsync();
 
-        // ── РЕАЛЬНЫЕ МАТЧИ ───────────────────────────────────────────────────
+        
         var matches = new[]
         {
-            // TI 2025 Grand Final: Falcons 3-2 Xtreme Gaming
+            
             new Match { TournamentId=ti25.Id, StageId=tiGF.Id, TeamAId=falcons.Id, TeamBId=xg.Id,      Format=MatchFormat.Bo5, Status=MatchStatus.Completed, ScheduledAt=Utc(2025,9,14,14,0), StartedAt=Utc(2025,9,14,14,10), FinishedAt=Utc(2025,9,14,21,0), TeamAScore=3, TeamBScore=2, WinnerId=falcons.Id, TwitchUrl="https://twitch.tv/dota2ti", YoutubeUrl="https://youtube.com/dota2", CreatedAt=now, UpdatedAt=now },
-            // TI 2025 UB Final
+            
             new Match { TournamentId=ti25.Id, StageId=tiPO.Id, TeamAId=falcons.Id, TeamBId=spirit.Id,  Format=MatchFormat.Bo3, Status=MatchStatus.Completed, ScheduledAt=Utc(2025,9,12,12,0), StartedAt=Utc(2025,9,12,12,5), FinishedAt=Utc(2025,9,12,15,0), TeamAScore=2, TeamBScore=0, WinnerId=falcons.Id, CreatedAt=now, UpdatedAt=now },
             new Match { TournamentId=ti25.Id, StageId=tiPO.Id, TeamAId=xg.Id,      TeamBId=betboom.Id, Format=MatchFormat.Bo3, Status=MatchStatus.Completed, ScheduledAt=Utc(2025,9,13,10,0), StartedAt=Utc(2025,9,13,10,5), FinishedAt=Utc(2025,9,13,13,0), TeamAScore=2, TeamBScore=1, WinnerId=xg.Id,      CreatedAt=now, UpdatedAt=now },
-            // BLAST Slam V Final: Tundra 3-? Falcons
+            
             new Match { TournamentId=blast5.Id, StageId=b5GF.Id, TeamAId=tundra.Id, TeamBId=falcons.Id, Format=MatchFormat.Bo5, Status=MatchStatus.Completed, ScheduledAt=Utc(2025,12,7,15,0), StartedAt=Utc(2025,12,7,15,5), FinishedAt=Utc(2025,12,7,20,0), TeamAScore=3, TeamBScore=1, WinnerId=tundra.Id, CreatedAt=now, UpdatedAt=now },
-            // PGL Wallachia S7 - Ongoing matches
+            
             new Match { TournamentId=pglw7.Id, StageId=pglGS.Id, TeamAId=falcons.Id, TeamBId=tundra.Id, Format=MatchFormat.Bo3, Status=MatchStatus.Scheduled, ScheduledAt=Utc(2026,3,25,14,0), CreatedAt=now, UpdatedAt=now },
             new Match { TournamentId=pglw7.Id, StageId=pglGS.Id, TeamAId=spirit.Id,  TeamBId=liquid.Id, Format=MatchFormat.Bo3, Status=MatchStatus.Scheduled, ScheduledAt=Utc(2026,3,25,17,0), CreatedAt=now, UpdatedAt=now },
             new Match { TournamentId=pglw7.Id, StageId=pglGS.Id, TeamAId=og.Id,      TeamBId=navi.Id,   Format=MatchFormat.Bo3, Status=MatchStatus.Scheduled, ScheduledAt=Utc(2026,3,26,14,0), CreatedAt=now, UpdatedAt=now },
@@ -338,19 +338,19 @@ public static class DbSeeder
         ctx.Matches.AddRange(matches);
         await ctx.SaveChangesAsync();
 
-        // ── РЕАЛЬНЫЕ ИГРОКИ ──────────────────────────────────────────────────
+        
         ctx.ProPlayers.AddRange(
-            // ATF (Falcons) - лучший офлейнер 2025, TI2025 MVP
+            
             new ProPlayer { UserId=admin.Id, Nickname="ATF",      RealName="Ammar Al-Assaf",    Country="JO", Role=PlayerRole.Offlaner,    TeamId=falcons.Id, Status=ProPlayerStatus.Approved, TotalMatches=346, Wins=222, AvgKills=6.8, AvgDeaths=3.2, AvgAssists=9.1, AvgGpm=520, AvgXpm=570, CreatedAt=now, UpdatedAt=now, Bio="TI2025 champion and best offlaner of 2025. Known for Mars and Timbersaw. Captain of Team Falcons. 23-year-old Jordanian player." },
-            // Malr1ne (Falcons) - лучший мидлейнер 2025
+            
             new ProPlayer { UserId=fan.Id,   Nickname="Malr1ne",  RealName="Stanislav Potorak",  Country="RU", Role=PlayerRole.Midlaner,    TeamId=falcons.Id, Status=ProPlayerStatus.Approved, TotalMatches=346, Wins=222, AvgKills=7.2, AvgDeaths=2.8, AvgAssists=7.4, AvgGpm=580, AvgXpm=620, CreatedAt=now, UpdatedAt=now, Bio="Best midlaner of 2025. Renowned for Timbersaw, Sand King, and Primal Beast. Known for dominant laning and excellent teamfight positioning." },
-            // 33 (Tundra) - лучший капитан 2025, 4x BLAST Slam
+            
             new ProPlayer { UserId=user2.Id, Nickname="33",       RealName="Neta Shapira",      Country="IL", Role=PlayerRole.Offlaner,    TeamId=tundra.Id,  Status=ProPlayerStatus.Approved, TotalMatches=578, Wins=340, AvgKills=4.8, AvgDeaths=3.5, AvgAssists=8.9, AvgGpm=490, AvgXpm=530, CreatedAt=now, UpdatedAt=now, Bio="TI2022 champion. Captain of Tundra Esports. Named best offlaner multiple years running for exceptional micro skills and unconventional drafts." },
-            // Yatoro (Spirit) - TI2021 MVP, EWC 2025 чемпион
+            
             new ProPlayer { UserId=user3.Id, Nickname="Yatoro",   RealName="Ilya Mulyarchuk",   Country="UA", Role=PlayerRole.Carry,       TeamId=spirit.Id,  Status=ProPlayerStatus.Approved, TotalMatches=412, Wins=265, AvgKills=8.4, AvgDeaths=2.6, AvgAssists=6.2, AvgGpm=650, AvgXpm=680, CreatedAt=now, UpdatedAt=now, Bio="World-class carry since TI2021. Known for impeccable map awareness and highly efficient farming. Led Spirit to EWC 2025 title." }
         );
 
-        // ── РЕАЛЬНЫЕ НОВОСТИ ─────────────────────────────────────────────────
+        
         ctx.NewsArticles.AddRange(
             new NewsArticle { Title="Team Falcons — Чемпионы The International 2025", Slug="falcons-ti2025-champions", Summary="Team Falcons победили Xtreme Gaming 3:2 в захватывающем гранд-финале TI14 в Гамбурге.", Content="14 сентября 2025 года Team Falcons вошли в историю Dota 2, завоевав Aegis of Champions на The International 2025, прошедшем на арене Barclays Arena в Гамбурге. В захватывающем гранд-финале формата bo5 Falcons победили Xtreme Gaming со счётом 3:2. ATF, Malr1ne и Cr1t- были признаны ключевыми игроками турнира. Призовой фонд TI14 составил $2,881,791 — исторически один из самых скромных, но ни в коей мере не уменьшивший накал страстей. Малр1не после финала заявил: «Мы знали, что можем это сделать. Команда работала невероятно усердно весь год».", Category="Result", IsPublished=true, AuthorId=admin.Id, PublishedAt=Utc(2025,9,14,22,0), CreatedAt=Utc(2025,9,14), UpdatedAt=Utc(2025,9,14) },
             new NewsArticle { Title="Tundra Esports выиграли BLAST Slam V и DreamLeague S27", Slug="tundra-blast-slam-5-dl27", Summary="33 и компания завоевали очередные два крупных трофея, утвердив свой статус топ-команды конца 2025 года.", Content="Tundra Esports завершили 2025 год на невероятной волне: победы на BLAST Slam V и DreamLeague Season 27 сделали их самой титулованной командой второй половины сезона. Особенно впечатляет BLAST Slam — это уже четвёртая подряд победа Tundra в этой серии. Капитан команды 33 прокомментировал: «Мы сделали то, что должны были. Команда работала очень хорошо».", Category="Result", IsPublished=true, AuthorId=admin.Id, PublishedAt=Utc(2025,12,8,10,0), CreatedAt=Utc(2025,12,8), UpdatedAt=Utc(2025,12,8) },
@@ -363,7 +363,7 @@ public static class DbSeeder
             new NewsArticle { Title="TI 2026 пройдёт в Шанхае — официально подтверждено", Slug="ti2026-shanghai-confirmed", Summary="Valve объявила, что The International 2026 состоится в Шанхае, Китай. Это будет первый TI в Китае с 2018 года.", Content="Valve официально объявила место проведения The International 2026 — Шанхай, Китай. Это большая победа для китайского сообщества Dota 2, которое получило TI на родной земле впервые с 2018 года. Xtreme Gaming, финалисты TI 2025, рассчитывают сыграть при поддержке домашней аудитории.", Category="News", IsPublished=true, AuthorId=admin.Id, PublishedAt=Utc(2025,10,15,10,0), CreatedAt=Utc(2025,10,15), UpdatedAt=Utc(2025,10,15) }
         );
 
-        // Extra detailed news for richness
+        
         ctx.NewsArticles.AddRange(
             new NewsArticle { Title="Обзор ростеров: кто выиграет TI 2026?", Slug="ti2026-roster-preview", Summary="Аналитики HDA.gg разбирают каждую команду и их шансы на победу на TI 2026 в Шанхае.", Content="С приближением TI 2026 в Шанхае мы решили проанализировать текущие ростеры всех топ-команд. Team Falcons выглядят как главные фавориты — ATF и Malr1ne продолжают доминировать в своих позициях, а состав выглядит цельнее некуда. Tundra Esports идут следом: 33 — лучший капитан мира прямо сейчас, а их механика давно стала легендой. Неожиданный претендент — Team Liquid после побды на BLAST Slam VI: Ace показывает лучшую игру в карьере.", Category="Analysis", IsPublished=true, AuthorId=admin.Id, PublishedAt=Utc(2026,3,15,10,0), CreatedAt=Utc(2026,3,15), UpdatedAt=Utc(2026,3,15) },
             new NewsArticle { Title="PGL Wallachia S7: предматчевый анализ", Slug="pgl-wallachia-s7-preview", Summary="Разбираем группы, ключевые противостояния и прогнозы для PGL Wallachia Season 7.", Content="PGL Wallachia Season 7 стартовал 10 марта с 16 лучшими командами мира. Группа A выглядит смертоносной: Falcons, Tundra и Spirit в одной группе гарантируют зрелищные матчи. Особо интересно противостояние Falcons против Tundra — реванш за поражение на BLAST Slam V. В группе B самый опасный тёмная лошадка — Heroic, которые показали невероятную игру на TI 2025.", Category="Analysis", IsPublished=true, AuthorId=admin.Id, PublishedAt=Utc(2026,3,9,11,0), CreatedAt=Utc(2026,3,9), UpdatedAt=Utc(2026,3,9) },
