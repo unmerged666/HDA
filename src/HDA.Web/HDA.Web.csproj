@@ -17,7 +17,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
   </ItemGroup>
 
-  <!-- Reference Domain and Infrastructure projects -->
+  
   <ItemGroup>
     <ProjectReference Include="..\HDA.Domain\HDA.Domain.csproj" />
     <ProjectReference Include="..\HDA.Infrastructure\HDA.Infrastructure.csproj" />
