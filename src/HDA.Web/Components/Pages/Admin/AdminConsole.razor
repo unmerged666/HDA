@@ -4,9 +4,9 @@
 @implements IDisposable
 
 <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:calc(100vh - 300px);min-height:500px;">
-    <!-- Main console -->
+    
     <div style="display:flex;flex-direction:column;gap:0;">
-        <!-- Output -->
+        
         <div id="console-output" style="flex:1;background:#020508;border:1px solid var(--border);border-radius:10px 10px 0 0;padding:16px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:12px;min-height:300px;">
             @foreach (var line in _lines)
             {
@@ -19,7 +19,7 @@
                 <div class="console-line info" style="animation:pulse-dot 1s infinite;">⟳ Выполняется...</div>
             }
         </div>
-        <!-- Input -->
+        
         <div style="display:flex;gap:0;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;overflow:hidden;">
             <div style="background:#030508;padding:10px 14px;color:var(--accent);font-family:'DM Mono',monospace;font-size:12px;font-weight:700;flex-shrink:0;">hda@sql $</div>
             <input @bind="_input" @bind:event="oninput" @onkeydown="OnKey"
@@ -31,7 +31,7 @@
         </div>
     </div>
 
-    <!-- Sidebar: quick commands -->
+    
     <div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;">
         <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--t3);text-transform:uppercase;font-family:var(--font-display);">Быстрые команды</div>
         @foreach (var (cat, cmds) in _quickCmds)
