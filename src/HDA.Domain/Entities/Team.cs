@@ -4,7 +4,7 @@ public class Team
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Tag { get; set; } = string.Empty; // e.g. "OG", "NAVI"
+    public string Tag { get; set; } = string.Empty; 
     public string? LogoUrl { get; set; }
     public string? Region { get; set; }
     public string? Country { get; set; }
@@ -15,7 +15,7 @@ public class Team
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation
+    
     public ICollection<ProPlayer> Players { get; set; } = new List<ProPlayer>();
     public ICollection<Match> HomeMatches { get; set; } = new List<Match>();
     public ICollection<Match> AwayMatches { get; set; } = new List<Match>();
