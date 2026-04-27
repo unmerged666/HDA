@@ -13,7 +13,7 @@
 
 @if (_editing != null)
 {
-    <!-- Edit form -->
+    
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">
         <div style="font-size:14px;font-weight:700;color:var(--t1);margin-bottom:16px;font-family:var(--font-display);">
             @(_editing.Id == 0 ? "Новая статья" : "Редактировать: " + _editing.Title)
