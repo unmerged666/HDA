@@ -19,7 +19,7 @@ public class ProPlayer
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Career stats
+    
     public int TotalMatches { get; set; }
     public int Wins { get; set; }
     public double AvgKills { get; set; }
@@ -28,7 +28,7 @@ public class ProPlayer
     public double AvgGpm { get; set; }
     public double AvgXpm { get; set; }
 
-    // Navigation
+    
     public User User { get; set; } = null!;
     public Team? Team { get; set; }
     public ICollection<PlayerHeroStat> HeroStats { get; set; } = new List<PlayerHeroStat>();
