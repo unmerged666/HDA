@@ -14,7 +14,7 @@ public class User
     public DateTime? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
 
-    // Navigation
+    
     public ProPlayer? ProPlayerProfile { get; set; }
     public ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
 }
