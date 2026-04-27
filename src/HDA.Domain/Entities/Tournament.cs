@@ -21,7 +21,7 @@ public class Tournament
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation
+    
     public ICollection<TournamentParticipant> Participants { get; set; } = new List<TournamentParticipant>();
     public ICollection<Match> Matches { get; set; } = new List<Match>();
     public ICollection<TournamentStage> Stages { get; set; } = new List<TournamentStage>();
@@ -43,7 +43,7 @@ public class TournamentStage
 {
     public int Id { get; set; }
     public int TournamentId { get; set; }
-    public string Name { get; set; } = string.Empty; // "Group Stage", "Playoffs"
+    public string Name { get; set; } = string.Empty; 
     public StageType Type { get; set; }
     public int Order { get; set; }
     public DateTime? StartDate { get; set; }
