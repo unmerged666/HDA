@@ -22,7 +22,7 @@
 else
 {
     <MudGrid Spacing="3">
-        <!-- Main Editor -->
+        
         <MudItem xs="12" md="8">
             <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
                 <MudTextField @bind-Value="_form.Title" Label="Title *" Variant="Variant.Outlined"
@@ -39,12 +39,12 @@ else
             </MudPaper>
         </MudItem>
 
-        <!-- Sidebar Settings -->
+        
         <MudItem xs="12" md="4">
             <MudPaper Elevation="0" Style="background:#16213E; border:1px solid #1E1E3A; border-radius:12px; padding:24px;">
                 <MudText Typo="Typo.h6" Class="mb-3" Style="color:#EAEAEA;">Article Settings</MudText>
 
-                <!-- Category -->
+                
                 <MudSelect @bind-Value="_form.Category" Label="Category" Variant="Variant.Outlined" Class="mb-3">
                     <MudSelectItem Value="@("Result")">Result</MudSelectItem>
                     <MudSelectItem Value="@("Transfer")">Transfer</MudSelectItem>
@@ -54,7 +54,7 @@ else
                     <MudSelectItem Value="@("News")">General News</MudSelectItem>
                 </MudSelect>
 
-                <!-- Cover Image -->
+                
                 <MudText Typo="Typo.subtitle2" Style="color:#8A8AAA;" Class="mb-1">Cover Image</MudText>
                 @if (!string.IsNullOrEmpty(_imagePreview))
                 {
@@ -68,7 +68,7 @@ else
                     @(_imagePreview != null ? "Change Image" : "Upload Cover Image")
                 </MudButton>
 
-                <!-- Publish toggle -->
+                
                 <MudSwitch @bind-Value="_form.IsPublished" Color="Color.Success" Class="mb-3">
                     <MudText Typo="Typo.body2" Style="color:#EAEAEA;">
                         @(_form.IsPublished ? "Published" : "Draft")
@@ -77,7 +77,7 @@ else
 
                 <MudDivider Class="mb-3" />
 
-                <!-- Actions -->
+                
                 <MudStack Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save"
                                Disabled="_saving" FullWidth="true" StartIcon="@Icons.Material.Filled.Save">
